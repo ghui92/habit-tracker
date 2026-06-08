@@ -944,7 +944,7 @@ document.querySelectorAll('.nav-item').forEach(function(el){
 // ── HOME ──────────────────────────────────────────────────
 var WDAYS=['日','一','二','三','四','五','六'];
 function isTaskActiveToday(task){
-  if(task.frequency === 'once') return false;
+  if(task.frequency === 'once') return true;
   if(task.frequency === 'daily') return true;
   if(task.frequency === 'weekly'){
     var d = new Date().getDay();
@@ -1014,9 +1014,6 @@ function renderHome(){
       tagsHtml = '<div class="tc-tags">'+task.tags.map(function(tg){ return '<span class="tc-tag">'+tg+'</span>'; }).join('')+'</div>';
     }
     var freqBadge = '';
-    if(task.frequency !== 'daily'){
-      freqBadge = '<div class="tc-freq-badge">'+getFreqLabel(task)+'</div>';
-    }
 
     card.innerHTML =
       freqBadge +
