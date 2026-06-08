@@ -88,8 +88,8 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .task-grid { padding:0 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px; }
 .task-grid.g2 { grid-template-columns:repeat(2,1fr); }
 .tc {
-  aspect-ratio:1;border-radius:var(--r2);padding:12px;
-  display:flex;flex-direction:column;justify-content:space-between;
+  aspect-ratio:1;border-radius:var(--r2);padding:10px;
+  display:flex;flex-direction:column;
   cursor:pointer;position:relative;overflow:hidden;
   transition:transform .18s cubic-bezier(.34,1.56,.64,1);
   background:var(--surface);border:1px solid var(--border);
@@ -101,29 +101,29 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .tc.sk { opacity:.5; }
 .tc.sk .tc-check svg { stroke:var(--text3); }
 .tc-check {
-  position:absolute;top:8px;right:8px;width:18px;height:18px;
+  position:absolute;top:6px;right:6px;width:16px;height:16px;
   border-radius:50%;background:var(--green);display:none;
   align-items:center;justify-content:center;
 }
-.tc-check svg { width:10px;height:10px;stroke:white;stroke-width:3;fill:none; }
+.tc-check svg { width:9px;height:9px;stroke:white;stroke-width:3;fill:none; }
 .tc.done .tc-check { display:flex; }
 .tc-icon-wrap {
-  width:36px;height:36px;border-radius:10px;
+  width:30px;height:30px;border-radius:8px;
   display:flex;align-items:center;justify-content:center;
   background:rgba(139,122,110,0.08);
 }
-.tc-icon-wrap svg { width:20px;height:20px;stroke:var(--accent);fill:none;stroke-width:1.8; }
+.tc-icon-wrap svg { width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:1.8; }
 .tc.done .tc-icon-wrap { background:rgba(127,168,138,0.12); }
 .tc.done .tc-icon-wrap svg { stroke:var(--green); }
-.tc-name { font-size:12px;font-weight:600;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:6px; }
-.tc-prog { font-size:10px;color:var(--text3); }
-.tc-bar { height:3px;background:var(--bg3);border-radius:2px;margin-top:5px;overflow:hidden; }
+.tc-name { font-size:11px;font-weight:600;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:4px; }
+.tc-prog { font-size:9px;color:var(--text3); }
+.tc-bar { height:2px;background:var(--bg3);border-radius:2px;margin-top:3px;overflow:hidden; }
 .tc-fill { height:100%;border-radius:2px;transition:width .4s; }
-.tc-chapter { font-size:9px;color:var(--text3);margin-top:3px; }
-.tc-tags { display:flex;gap:3px;flex-wrap:wrap;margin-top:4px; }
-.tc-tag { padding:1px 6px;border-radius:6px;font-size:9px;background:var(--bg3);color:var(--text2); }
+.tc-chapter { font-size:8px;color:var(--text3);margin-top:2px; }
+.tc-tags { display:flex;gap:2px;flex-wrap:wrap;margin-top:2px;overflow:hidden; }
+.tc-tag { padding:1px 5px;border-radius:4px;font-size:8px;background:var(--bg3);color:var(--text2);line-height:1.4; }
 .tc-freq-badge {
-  position:absolute;top:8px;left:8px;font-size:8px;padding:2px 5px;border-radius:4px;
+  position:absolute;top:6px;left:6px;font-size:7px;padding:1px 4px;border-radius:3px;
   background:var(--bg3);color:var(--text2);font-weight:600;
 }
 .tc-add {
@@ -722,12 +722,16 @@ textarea.fi { resize:none;height:72px; }
         <input class="ci-slider" type="range" id="ci-slider" min="0" max="120" value="20">
         <div class="ci-time" id="ci-time">20 分</div>
       </div>
-      <div class="ci-hint">拖动调整实际完成时长</div>
+      <div class="ci-hint" id="ci-note" style="font-size:14px;color:var(--text2);text-align:center;margin:6px 0 2px;line-height:1.4;font-weight:500;"></div>
     </div>
     <div class="btn-row" style="flex-wrap:wrap;">
       <div class="btn btn-ghost" id="ci-undo-btn" style="flex:1;">撤销打卡</div>
       <div class="btn btn-primary" id="ci-confirm-btn" style="flex:1;">确认打卡</div>
       <div class="btn btn-ghost" id="ci-skip-btn" style="flex:0 0 100%;margin-top:6px;background:rgba(192,168,122,.08);color:var(--gold);">今日休息 / 跳过</div>
+      <div style="display:flex;gap:10px;width:100%;margin-top:10px;">
+        <div class="btn btn-ghost" id="ci-edit-btn" style="flex:1;font-size:12px;">✎ 编辑任务</div>
+        <div class="btn btn-danger" id="ci-del-btn" style="flex:1;font-size:12px;">✕ 删除任务</div>
+      </div>
     </div>
     <div style="height:10px;"></div>
   </div>
@@ -784,6 +788,39 @@ textarea.fi { resize:none;height:72px; }
       <div class="btn btn-primary" id="todo-save-btn">添加</div>
     </div>
     <div style="height:10px;"></div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="overlay" id="m-confirm">
+  <div class="sheet" style="max-width:300px;margin:0 auto;border-radius:24px;align-self:center;">
+    <div class="sh-handle"></div>
+    <div style="padding:24px 20px 0;text-align:center;">
+      <div class="sh-title" id="confirm-title">确认</div>
+      <div style="font-size:14px;color:var(--text2);margin:14px 0 8px;line-height:1.5;" id="confirm-msg"></div>
+    </div>
+    <div class="btn-row" style="padding:12px 20px 18px;">
+      <div class="btn btn-ghost" id="confirm-cancel-btn">取消</div>
+      <div class="btn btn-primary" id="confirm-ok-btn">确定</div>
+    </div>
+  </div>
+</div>
+
+<!-- PROMPT MODAL -->
+<div class="overlay" id="m-prompt">
+  <div class="sheet" style="max-width:300px;margin:0 auto;border-radius:24px;align-self:center;">
+    <div class="sh-handle"></div>
+    <div style="padding:24px 20px 0;">
+      <div class="sh-title" id="prompt-title">输入</div>
+      <div class="fg" style="margin-top:12px;">
+        <div class="fl" id="prompt-label">名称</div>
+        <input class="fi" id="prompt-input" maxlength="20" placeholder="">
+      </div>
+    </div>
+    <div class="btn-row" style="padding:12px 20px 18px;">
+      <div class="btn btn-ghost" id="prompt-cancel-btn">取消</div>
+      <div class="btn btn-primary" id="prompt-ok-btn">确定</div>
+    </div>
   </div>
 </div>
 
@@ -987,12 +1024,12 @@ function renderHome(){
       '<div>'+
         '<div class="tc-icon-wrap" style="background:'+(isSk?'rgba(180,160,145,.10)':(task.color+'20'))+'">'+getIconSvg(task.icon)+'</div>'+
         '<div class="tc-name" style="color:'+(isSk?'':task.color)+'">'+task.name+'</div>'+
-        tagsHtml+
       '</div>'+
-      '<div>'+
+      '<div style="margin-top:auto">'+
         '<div class="tc-prog">'+(isSk?'休息':(isDone?minsD:0)+'/'+task.duration+'分')+'</div>'+
         '<div class="tc-bar"><div class="tc-fill" style="width:'+(isSk?0:prog*100)+'%;background:'+(isSk?'var(--text3)':isDone?'var(--green)':task.color)+';opacity:'+(isSk?.3:isDone?1:.7)+'"></div></div>'+
         chapterHtml +
+        tagsHtml +
       '</div>';
     card.addEventListener('click', function(){ openCI(task); });
     grid.appendChild(card);
@@ -1064,6 +1101,14 @@ function openCI(task){
   sl.max=Math.max(task.duration,120);
   sl.value=cur!==undefined?cur:task.duration;
   document.getElementById('ci-time').textContent=sl.value+' 分';
+
+  var noteEl = document.getElementById('ci-note');
+  if(task.note){
+    noteEl.textContent = task.note;
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
   openModal('m-ci');
 }
 document.getElementById('ci-slider').addEventListener('input',function(){
@@ -1097,6 +1142,18 @@ document.getElementById('ci-skip-btn').addEventListener('click', function(){
   saveDB(); closeModal('m-ci'); showToast('已标记休息 '+ciTask.name); renderHome();
 });
 document.getElementById('m-ci-close').addEventListener('click', function(){ closeModal('m-ci'); });
+document.getElementById('ci-edit-btn').addEventListener('click', function(){
+  if(!ciTask) return;
+  closeModal('m-ci'); openEditTask(ciTask);
+});
+document.getElementById('ci-del-btn').addEventListener('click', function(){
+  if(!ciTask) return;
+  showConfirm('确认删除任务「'+ciTask.name+'」？清空所有打卡记录。', function(){
+    db.tasks=db.tasks.filter(function(t){ return t.id!==ciTask.id; });
+    Object.keys(db.checkins).forEach(function(k){ delete db.checkins[k][ciTask.id]; delete db.checkins[k][ciTask.id+'_sk']; });
+    saveDB(); closeModal('m-ci'); showToast('任务已删除'); renderHome();
+  });
+});
 
 // ── TASK EDITOR ───────────────────────────────────────────
 var editTask=null;
@@ -1166,13 +1223,13 @@ function buildCategoryChips(){
       if(e.target.closest('.cat-del')){
         e.stopPropagation();
         if(db.categories.length <= 1){ showToast('至少保留一个分类'); return; }
-        if(confirm('删除分类「'+cat+'」？该分类下的任务将变为「'+db.categories[0]+'」')){
+        showConfirm('删除分类「'+cat+'」？该分类下的任务将变为「'+db.categories[0]+'」', function(){
           db.categories = db.categories.filter(function(c){ return c !== cat; });
           db.tasks.forEach(function(t){ if(t.category === cat) t.category = db.categories[0]; });
           if(tf.cat === cat) tf.cat = db.categories[0];
           saveDB();
           buildCategoryChips();
-        }
+        });
         return;
       }
       tf.cat = cat;
@@ -1184,15 +1241,13 @@ function buildCategoryChips(){
   addBtn.className = 'cat-add-btn';
   addBtn.innerHTML = '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新建';
   addBtn.addEventListener('click', function(){
-    var name = prompt('输入新分类名称：');
-    if(name && name.trim()){
-      name = name.trim();
+    showPrompt('分类名称', '', function(name){
       if(db.categories.indexOf(name) !== -1){ showToast('分类已存在'); return; }
       db.categories.push(name);
       tf.cat = name;
       saveDB();
       buildCategoryChips();
-    }
+    });
   });
   row.appendChild(addBtn);
 }
@@ -1282,10 +1337,11 @@ document.getElementById('task-save-btn').addEventListener('click', function(){
 });
 document.getElementById('task-del-btn').addEventListener('click', function(){
   if(!editTask)return;
-  if(!confirm('确认删除「'+editTask.name+'」？')) return;
-  db.tasks=db.tasks.filter(function(t){ return t.id!==editTask.id; });
-  Object.keys(db.checkins).forEach(function(k){ delete db.checkins[k][editTask.id]; delete db.checkins[k][editTask.id+'_sk']; });
-  saveDB(); closeModal('m-task'); closeModal('m-manage'); showToast('任务已删除'); renderHome();
+  showConfirm('确认删除「'+editTask.name+'」？清空所有打卡记录。', function(){
+    db.tasks=db.tasks.filter(function(t){ return t.id!==editTask.id; });
+    Object.keys(db.checkins).forEach(function(k){ delete db.checkins[k][editTask.id]; delete db.checkins[k][editTask.id+'_sk']; });
+    saveDB(); closeModal('m-task'); closeModal('m-manage'); showToast('任务已删除'); renderHome();
+  });
 });
 document.getElementById('task-cancel-btn').addEventListener('click', function(){ closeModal('m-task'); });
 document.getElementById('m-task-close').addEventListener('click', function(){ closeModal('m-task'); });
@@ -1527,7 +1583,7 @@ document.getElementById('btn-export').addEventListener('click', function(){
   }catch(e){showToast('导出失败，请重试');}
 });
 document.getElementById('btn-clear').addEventListener('click', function(){
-  if(confirm('确认清除所有数据？此操作无法撤销。')){ localStorage.removeItem(DB_KEY); location.reload(); }
+  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.removeItem(DB_KEY); location.reload(); });
 });
 
 // ── TODO ─────────────────────────────────────────────────
@@ -1548,10 +1604,9 @@ function renderTodos(){
     text.className = 'todo-text';
     text.textContent = todo.text;
     (function(tid, ot){ text.addEventListener('dblclick', function(){
-      var newText = prompt('编辑待办：', ot.text);
-      if(newText && newText.trim()){
-        ot.text = newText.trim(); saveDB(); renderTodos();
-      }
+      showPrompt('待办内容', ot.text, function(newText){
+        ot.text = newText; saveDB(); renderTodos();
+      });
     }); })(todo.id, todo);
     var del = document.createElement('div');
     del.className = 'todo-del';
@@ -1710,6 +1765,27 @@ document.addEventListener('click', function(e){
 
 // ── MODAL ─────────────────────────────────────────────────
 function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function showConfirm(msg, onOk){
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-ok-btn').onclick = function(){ closeModal('m-confirm'); if(onOk) onOk(); };
+  document.getElementById('confirm-cancel-btn').onclick = function(){ closeModal('m-confirm'); };
+  document.getElementById('m-confirm').onclick = function(e){ if(e.target===this) closeModal('m-confirm'); };
+  openModal('m-confirm');
+}
+function showPrompt(label, val, onOk){
+  document.getElementById('prompt-label').textContent = label;
+  var inp = document.getElementById('prompt-input');
+  inp.value = val || '';
+  inp.placeholder = label;
+  document.getElementById('prompt-ok-btn').onclick = function(){
+    var v = inp.value.trim();
+    if(!v){ showToast('请输入'+label); return; }
+    closeModal('m-prompt'); if(onOk) onOk(v);
+  };
+  document.getElementById('prompt-cancel-btn').onclick = function(){ closeModal('m-prompt'); };
+  document.getElementById('m-prompt').onclick = function(e){ if(e.target===this) closeModal('m-prompt'); };
+  openModal('m-prompt'); setTimeout(function(){ inp.focus(); }, 200);
+}
 function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
 document.querySelectorAll('.overlay').forEach(function(ov){
   ov.addEventListener('click', function(e){ if(e.target===ov) closeModal(ov.id); });
