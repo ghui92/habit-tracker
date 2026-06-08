@@ -723,6 +723,27 @@ textarea.fi { resize:none;height:72px; }
         <div class="ci-time" id="ci-time">20 分</div>
       </div>
       <div class="ci-hint" id="ci-note" style="font-size:14px;color:var(--text2);text-align:center;margin:6px 0 2px;line-height:1.4;font-weight:500;"></div>
+      <!-- 打卡备注 & 标签摘要 -->
+      <div id="ci-detail-summary" style="text-align:center;margin-top:8px;font-size:12px;color:var(--text3);min-height:18px;"></div>
+      <!-- 展开/收起按钮 -->
+      <div style="text-align:center;margin-top:2px;">
+        <span id="ci-detail-toggle" style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;-webkit-user-select:none;">＋ 添加备注/标签</span>
+      </div>
+      <!-- 备注和标签编辑区（默认隐藏） -->
+      <div id="ci-detail-edit" style="display:none;">
+        <div class="fg" style="margin-top:10px;">
+          <div class="fl">打卡备注（仅本次记录）</div>
+          <textarea class="fi" id="ci-note-input" placeholder="写点什么…（不修改任务设定）" style="height:56px;"></textarea>
+        </div>
+        <div class="fg" style="margin-top:8px;">
+          <div class="fl">打卡标签（仅本次记录）</div>
+          <div class="tl" id="ci-tag-list"></div>
+          <div class="tir" style="margin-top:6px;">
+            <input class="fi" id="ci-tag-input" placeholder="输入标签" maxlength="10" style="flex:1;">
+            <div class="btn btn-primary" id="ci-tag-add-btn" style="flex:none;padding:7px 14px;font-size:12px;">添加</div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="btn-row" style="flex-wrap:wrap;">
       <div class="btn btn-ghost" id="ci-undo-btn" style="flex:1;">撤销打卡</div>
@@ -920,6 +941,30 @@ function isSkipped(task, dateStr){
   var ch=db.checkins[dateStr]||{};
   return ch[task.id+'_sk']!==undefined;
 }
+// Get duration from check-in record (backward compat: old=number, new={d,n,t})
+function ciDur(v){
+  if(typeof v==='number') return v;
+  if(v && typeof v==='object') return v.d||0;
+  return 0;
+}
+// Get note from check-in record
+function ciNote(v){
+  if(v && typeof v==='object') return v.n||'';
+  return '';
+}
+// Get tags from check-in record
+function ciTagsFromRec(v){
+  if(v && typeof v==='object') return v.t||[];
+  return [];
+}
+// Sum durations from all records on a day
+function sumCIDurs(ch){
+  var s=0;
+  Object.keys(ch).forEach(function(k){
+    if(k.indexOf('_sk')===-1) s+=ciDur(ch[k]);
+  });
+  return s;
+}
 
 // ── NAV ───────────────────────────────────────────────────
 var pages = { home:'p-home', cal:'p-cal', stats:'p-stats', profile:'p-profile' };
@@ -984,9 +1029,7 @@ function renderHome(){
 
   // Stats
   document.getElementById('st-streak').textContent = calcStreak();
-  var mins = 0;
-  Object.keys(ch).forEach(function(k){ if(k.indexOf('_sk')===-1 && typeof ch[k]==='number') mins+=ch[k]; });
-  document.getElementById('st-mins').textContent = mins;
+  document.getElementById('st-mins').textContent = sumCIDurs(ch);
   document.getElementById('st-mrate').textContent = calcMonthRate();
 
   // Grid
@@ -999,7 +1042,10 @@ function renderHome(){
   tasks.forEach(function(task){
     var isSk = isSkipped(task, tk);
     var isDone = !isSk && ch[task.id]!==undefined;
-    var minsD = ch[task.id]||0;
+    var recVal = ch[task.id];
+    var minsD = ciDur(recVal);
+    var recNote = ciNote(recVal);
+    var recTags = ciTagsFromRec(recVal);
     var prog = Math.min(1, minsD/(task.duration||20));
     var card = document.createElement('div');
     card.className = 'tc'+(isDone?' done':'')+(isSk?' sk':'');
@@ -1009,9 +1055,11 @@ function renderHome(){
     if(task.chapters && task.chapters.total > 0){
       chapterHtml = '<div class="tc-chapter">第'+task.chapters.current+'/'+task.chapters.total+'章</div>';
     }
+    // Show check-in tags (from record) if any, otherwise show task-level tags
     var tagsHtml = '';
-    if(task.tags && task.tags.length){
-      tagsHtml = '<div class="tc-tags">'+task.tags.map(function(tg){ return '<span class="tc-tag">'+tg+'</span>'; }).join('')+'</div>';
+    var displayTags = recTags.length > 0 ? recTags : (task.tags || []);
+    if(displayTags.length){
+      tagsHtml = '<div class="tc-tags">'+displayTags.map(function(tg){ return '<span class="tc-tag">'+tg+'</span>'; }).join('')+'</div>';
     }
     var freqBadge = '';
 
@@ -1075,7 +1123,7 @@ document.getElementById('fp-btn').addEventListener('click', function(){ openModa
 document.getElementById('task-add-btn').addEventListener('click', openAddTask);
 
 // ── CHECK-IN ─────────────────────────────────────────────
-var ciTask=null, selDate='';
+var ciTask=null, selDate='', ciTags=[];
 function openCI(task){
   ciTask=task;
   var tk=today(), ch=db.checkins[tk]||{};
@@ -1096,32 +1144,118 @@ function openCI(task){
 
   var sl=document.getElementById('ci-slider');
   sl.max=Math.max(task.duration,120);
-  sl.value=cur!==undefined?cur:task.duration;
+  // Get duration from record (compat: old number format or new object format)
+  var curDur = task.duration;
+  if(cur !== undefined){
+    if(typeof cur === 'number') curDur = cur;
+    else if(cur && typeof cur === 'object') curDur = cur.d || task.duration;
+  }
+  sl.value = curDur;
   document.getElementById('ci-time').textContent=sl.value+' 分';
 
+  // Display task-level note as hint (read-only reference)
   var noteEl = document.getElementById('ci-note');
   if(task.note){
-    noteEl.textContent = task.note;
+    noteEl.textContent = '任务备注：'+task.note;
     noteEl.style.display = 'block';
   } else {
     noteEl.style.display = 'none';
   }
+
+  // Initialize check-in-specific note (from record, NOT from task)
+  var ciNoteInput = document.getElementById('ci-note-input');
+  var ciNoteVal = '';
+  if(cur && typeof cur === 'object' && cur.n) ciNoteVal = cur.n;
+  ciNoteInput.value = ciNoteVal;
+
+  // Initialize check-in-specific tags (from record, NOT from task.tags)
+  ciTags = [];
+  if(cur && typeof cur === 'object' && cur.t) ciTags = cur.t.slice();
+  renderCITags();
+
+  // Collapse detail edit section, update summary
+  document.getElementById('ci-detail-edit').style.display = 'none';
+  document.getElementById('ci-detail-toggle').textContent = '＋ 添加备注/标签';
+  updateCIDetailSummary();
+
   openModal('m-ci');
+}
+
+// Update check-in detail summary line
+function updateCIDetailSummary(){
+  var parts = [];
+  var noteVal = document.getElementById('ci-note-input').value.trim();
+  if(noteVal) parts.push('备注：'+noteVal);
+  if(ciTags.length) parts.push('标签：'+ciTags.join('、'));
+  document.getElementById('ci-detail-summary').textContent = parts.join('  ·  ');
+}
+
+// Toggle check-in detail edit section
+function toggleCIDetail(){
+  var editEl = document.getElementById('ci-detail-edit');
+  var toggleEl = document.getElementById('ci-detail-toggle');
+  if(editEl.style.display === 'none'){
+    editEl.style.display = 'block';
+    toggleEl.textContent = '－ 收起';
+  } else {
+    editEl.style.display = 'none';
+    updateCIDetailSummary();
+    toggleEl.textContent = '＋ 添加备注/标签';
+  }
+}
+
+// Render check-in tags
+function renderCITags(){
+  var tl = document.getElementById('ci-tag-list');
+  tl.innerHTML = '';
+  ciTags.forEach(function(t, i){
+    var el = document.createElement('span');
+    el.className = 'tch';
+    el.textContent = t;
+    var del = document.createElement('span');
+    del.className = 'td';
+    del.innerHTML = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    (function(idx){ del.addEventListener('click', function(e){
+      e.stopPropagation();
+      ciTags.splice(idx, 1);
+      renderCITags();
+    }); })(i);
+    el.appendChild(del);
+    tl.appendChild(el);
+  });
+}
+
+// Add tag to check-in
+function addCITag(){
+  var inp = document.getElementById('ci-tag-input');
+  var v = inp.value.trim();
+  if(!v){ showToast('请输入标签'); return; }
+  if(ciTags.indexOf(v) !== -1){ showToast('标签已存在'); return; }
+  ciTags.push(v);
+  inp.value = '';
+  renderCITags();
+  updateCIDetailSummary();
 }
 document.getElementById('ci-slider').addEventListener('input',function(){
   document.getElementById('ci-time').textContent=this.value+' 分';
+});
+document.getElementById('ci-detail-toggle').addEventListener('click', toggleCIDetail);
+document.getElementById('ci-note-input').addEventListener('input', updateCIDetailSummary);
+document.getElementById('ci-tag-add-btn').addEventListener('click', addCITag);
+document.getElementById('ci-tag-input').addEventListener('keydown', function(e){
+  if(e.key==='Enter') addCITag();
 });
 document.getElementById('ci-confirm-btn').addEventListener('click', function(){
   if(!ciTask)return;
   var tk=selDate||today();
   if(!db.checkins[tk]) db.checkins[tk]={};
   delete db.checkins[tk][ciTask.id+'_sk'];
-  db.checkins[tk][ciTask.id]=parseInt(document.getElementById('ci-slider').value);
-
-  if(ciTask.chapters && ciTask.chapters.total > 0 && ciTask.chapters.current < ciTask.chapters.total){
-    ciTask.chapters.current++;
-    saveDB();
-  }
+  var ciNoteVal = document.getElementById('ci-note-input').value.trim();
+  db.checkins[tk][ciTask.id]={
+    d: parseInt(document.getElementById('ci-slider').value),
+    n: ciNoteVal,
+    t: ciTags.slice()
+  };
   saveDB(); closeModal('m-ci'); showToast('已打卡 '+ciTask.name+'！'); renderHome();
 });
 document.getElementById('ci-undo-btn').addEventListener('click', function(){
@@ -1348,16 +1482,18 @@ document.getElementById('btn-manage').addEventListener('click', openManage);
 function openManage(){
   var list=document.getElementById('manage-list');
   list.innerHTML='';
-  if(db.tasks.length===0){ list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);">暂无任务</div>'; }
+  // Filter out single/once tasks (单次任务不在管理器中显示)
+  var managedTasks = db.tasks.filter(function(t){ return t.frequency !== 'once'; });
+  if(managedTasks.length===0){ list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);">暂无任务</div>'; }
   var wrap=document.createElement('div');
   wrap.className='card';
   wrap.style.marginBottom='0';
-  db.tasks.forEach(function(task,i){
+  managedTasks.forEach(function(task,i){
     var item=document.createElement('div');
     item.className='ml-item';
     if(i===0) item.style.borderRadius='var(--r) var(--r) 0 0';
-    if(i===db.tasks.length-1) item.style.borderRadius='0 0 var(--r) var(--r)';
-    if(db.tasks.length===1) item.style.borderRadius='var(--r)';
+    if(i===managedTasks.length-1) item.style.borderRadius='0 0 var(--r) var(--r)';
+    if(managedTasks.length===1) item.style.borderRadius='var(--r)';
     var meta = task.category+' · '+task.duration+'分钟/次 · '+getFreqLabel(task);
     if(task.chapters && task.chapters.total > 0){
       meta += ' · 第'+task.chapters.current+'/'+task.chapters.total+'章';
@@ -1437,7 +1573,10 @@ function showDD(day,ds){
   else {
     activeTasks.forEach(function(t){
       var m=ch[t.id], done=m!==undefined, sk=ch[t.id+'_sk']!==undefined;
-      var statusText=sk?'休息/跳过':done?m+'分钟 / 目标'+t.duration+'分钟':'未打卡';
+      var mDur = ciDur(m);
+      var mNote = ciNote(m);
+      var statusText=sk?'休息/跳过':done?mDur+'分钟 / 目标'+t.duration+'分钟':'未打卡';
+      if(done && mNote) statusText += ' · '+mNote;
       var chapterInfo = '';
       if(t.chapters && t.chapters.total > 0){
         chapterInfo = ' · 第'+t.chapters.current+'/'+t.chapters.total+'章';
@@ -1523,7 +1662,7 @@ function renderStats(tab){
   },30);
   var todayCh=db.checkins[nowStr]||{};
   var tDone=countCheckins(todayCh);
-  var tMins=Object.keys(todayCh).filter(function(k){return k.indexOf('_sk')===-1;}).reduce(function(s,k){return s+(typeof todayCh[k]==='number'?todayCh[k]:0);},0);
+  var tMins=sumCIDurs(todayCh);
   var streak=calcStreak();
   var totalDays=Object.keys(db.checkins).filter(function(k){return countCheckins(db.checkins[k])>0;}).length;
   var ov=document.createElement('div'); ov.className='card sc';
