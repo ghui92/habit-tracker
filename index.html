@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#c8b5a5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Habit">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b7a6e'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='60' font-weight='700' fill='white' font-family='-apple-system, PingFang SC, sans-serif'%3EG%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b7a6e'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='60' font-weight='700' fill='white' font-family='-apple-system, PingFang SC, sans-serif'%3EG%3C/text%3E%3C/svg%3E">
 <title>习惯打卡</title>
 <style>
 :root {
@@ -393,6 +398,39 @@ textarea.fi { resize:none;height:72px; }
 .cal-popup-d.om { color:var(--text3);opacity:.35; }
 .cal-popup-d.td { font-weight:700;color:var(--accent); }
 .cal-popup-d.sel { background:var(--accent);color:white;font-weight:600; }
+/* Todo */
+.todo-section { padding:0 20px;margin-top:8px; }
+.todo-list { display:flex;flex-direction:column;gap:8px; }
+.todo-item {
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--surface);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow2);
+  transition:all .15s;cursor:pointer;
+}
+.todo-item.done { opacity:.55; }
+.todo-item:active { transform:scale(.98); }
+.todo-cb {
+  width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:white;pointer-events:none;
+}
+.todo-cb.done { background:var(--green);border-color:var(--green); }
+.todo-cb.done svg { width:11px;height:11px;stroke:white;stroke-width:3;fill:none; }
+.todo-text { flex:1;font-size:13px;color:var(--text); }
+.todo-item.done .todo-text { text-decoration:line-through;color:var(--text3); }
+.todo-del {
+  width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;opacity:.35;transition:opacity .15s;flex-shrink:0;
+}
+.todo-del:active { opacity:1; }
+.todo-del svg { width:14px;height:14px;stroke:var(--text3);fill:none;stroke-width:2; }
+.add-mini {
+  width:28px;height:28px;border-radius:50%;background:var(--accent-light);
+  border:1px solid rgba(139,122,110,.18);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+.add-mini:active { transform:scale(.88); }
+.add-mini svg { width:14px;height:14px;stroke:var(--accent);fill:none;stroke-width:2; }
 ::-webkit-scrollbar { display:none; }
 </style>
 <base target="_blank">
@@ -434,9 +472,19 @@ textarea.fi { resize:none;height:72px; }
   </div>
   <div class="sec-hd">
     <div class="sec-title">今日任务</div>
-    <div class="sec-action" id="grid-toggle">四宫格</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="add-mini" id="task-add-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+      <div class="sec-action" id="grid-toggle">四宫格</div>
+    </div>
   </div>
   <div class="task-grid" id="task-grid"></div>
+  <div class="todo-section">
+    <div class="sec-hd" style="padding:16px 0 10px;">
+      <div class="sec-title">待办事项</div>
+      <div class="add-mini" id="todo-add-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+    </div>
+    <div class="todo-list" id="todo-list"></div>
+  </div>
   <div style="height:16px;"></div>
 </div>
 
@@ -449,11 +497,6 @@ textarea.fi { resize:none;height:72px; }
     <div class="cnav" id="cal-next"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
   </div>
   <div class="cal-grid" id="cal-grid"></div>
-  <div class="heat-leg">
-    <span>少</span>
-    <div class="hl-dot h1"></div><div class="hl-dot h2"></div><div class="hl-dot h3"></div><div class="hl-dot h4"></div>
-    <span>多</span>
-  </div>
   <div class="day-detail card" id="day-detail" style="display:none;">
     <div class="dd-title" id="dd-title"></div>
     <div id="dd-list"></div>
@@ -725,6 +768,25 @@ textarea.fi { resize:none;height:72px; }
   </div>
 </div>
 
+<!-- MODAL: ADD TODO -->
+<div class="overlay" id="m-todo">
+  <div class="sheet">
+    <div class="sh-handle"></div>
+    <div class="sh-header">
+      <div class="sh-title">添加待办</div>
+      <div class="sh-close" id="m-todo-close"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+    </div>
+    <div class="form-body">
+      <div class="fg"><div class="fl">待办内容</div><input class="fi" id="fi-todo" placeholder="输入待办事项…" maxlength="50"></div>
+    </div>
+    <div class="btn-row">
+      <div class="btn btn-ghost" id="todo-cancel-btn">取消</div>
+      <div class="btn btn-primary" id="todo-save-btn">添加</div>
+    </div>
+    <div style="height:10px;"></div>
+  </div>
+</div>
+
 <!-- FOCUS MODE -->
 <div class="fo" id="m-focus">
   <div class="fc">
@@ -789,12 +851,13 @@ var ICON_KEYS = Object.keys(ICONS);
 function getIconSvg(key){ return ICONS[key] || ICONS.book; }
 
 // ── DATA ──────────────────────────────────────────────────
-var DB_KEY = 'habitpwa_v3';
+var DB_KEY = 'habitpwa_v4';
 var db = { name:'Hui', tasks:[], checkins:{}, gridCols:3, categories:['学习','健康','生活','其他'] };
 
 function loadDB(){
   try { var r=localStorage.getItem(DB_KEY); if(r) Object.assign(db,JSON.parse(r)); } catch(e){}
   if(!db.categories) db.categories = ['学习','健康','生活','其他'];
+  if(!db.todos) db.todos = [];
   if(!db.tasks.length){
     var defs=[
       {name:'英语单词',icon:'book',category:'学习',color:'#7a94b0',duration:20,note:'每天学习新单词',notify:true,frequency:'daily',weeklyDays:[],chapters:{total:30,current:15},tags:[]},
@@ -903,6 +966,7 @@ function renderHome(){
     var prog = Math.min(1, minsD/(task.duration||20));
     var card = document.createElement('div');
     card.className = 'tc'+(isDone?' done':'')+(isSk?' sk':'');
+    if(!isSk) card.style.borderLeft = '3px solid '+(isDone?'var(--green)':task.color);
 
     var chapterHtml = '';
     if(task.chapters && task.chapters.total > 0){
@@ -921,24 +985,19 @@ function renderHome(){
       freqBadge +
       '<div class="tc-check">'+(isSk?'<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>':'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>')+'</div>'+
       '<div>'+
-        '<div class="tc-icon-wrap" style="background:'+(isSk?'rgba(180,160,145,.10)':isDone?'rgba(127,168,138,.10)':'rgba(139,122,110,0.08)')+'">'+getIconSvg(task.icon)+'</div>'+
-        '<div class="tc-name">'+task.name+'</div>'+
+        '<div class="tc-icon-wrap" style="background:'+(isSk?'rgba(180,160,145,.10)':(task.color+'20'))+'">'+getIconSvg(task.icon)+'</div>'+
+        '<div class="tc-name" style="color:'+(isSk?'':task.color)+'">'+task.name+'</div>'+
         tagsHtml+
       '</div>'+
       '<div>'+
         '<div class="tc-prog">'+(isSk?'休息':(isDone?minsD:0)+'/'+task.duration+'分')+'</div>'+
-        '<div class="tc-bar"><div class="tc-fill" style="width:'+(isSk?0:prog*100)+'%;background:'+(isSk?'var(--text3)':isDone?'var(--green)':task.color)+';opacity:'+(isSk?.3:isDone?1:.55)+'"></div></div>'+
+        '<div class="tc-bar"><div class="tc-fill" style="width:'+(isSk?0:prog*100)+'%;background:'+(isSk?'var(--text3)':isDone?'var(--green)':task.color)+';opacity:'+(isSk?.3:isDone?1:.7)+'"></div></div>'+
         chapterHtml +
       '</div>';
     card.addEventListener('click', function(){ openCI(task); });
     grid.appendChild(card);
   });
-
-  var add = document.createElement('div');
-  add.className = 'tc tc-add';
-  add.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span>添加任务</span>';
-  add.addEventListener('click', openAddTask);
-  grid.appendChild(add);
+  renderTodos();
 }
 
 function calcStreak(){
@@ -978,6 +1037,8 @@ document.getElementById('grid-toggle').addEventListener('click', function(){
   saveDB(); renderHome();
 });
 document.getElementById('fp-btn').addEventListener('click', function(){ openModal('m-focus'); resetFocus(); });
+
+document.getElementById('task-add-btn').addEventListener('click', openAddTask);
 
 // ── CHECK-IN ─────────────────────────────────────────────
 var ciTask=null, selDate='';
@@ -1294,7 +1355,7 @@ function buildCal(){
       return true;
     }).length;
     var done=countCheckins(ch), tot=activeCount||1, rate=done/tot;
-    if(done>0&&ds!==nowStr){ var h=document.createElement('div'); h.className='cal-heat '+(rate<=.25?'h1':rate<=.5?'h2':rate<=.75?'h3':'h4'); el.insertBefore(h,el.firstChild); }
+    if(done>0){ var ringSvg=document.createElementNS('http://www.w3.org/2000/svg','svg'); ringSvg.setAttribute('viewBox','0 0 32 32'); ringSvg.setAttribute('width','32'); ringSvg.setAttribute('height','32'); ringSvg.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;'; var g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('transform','rotate(-90 16 16)'); var c1=document.createElementNS('http://www.w3.org/2000/svg','circle'); c1.setAttribute('cx','16'); c1.setAttribute('cy','16'); c1.setAttribute('r','13'); c1.setAttribute('fill','none'); c1.setAttribute('stroke','rgba(139,122,110,.12)'); c1.setAttribute('stroke-width','2.5'); g.appendChild(c1); var c2=document.createElementNS('http://www.w3.org/2000/svg','circle'); c2.setAttribute('cx','16'); c2.setAttribute('cy','16'); c2.setAttribute('r','13'); c2.setAttribute('fill','none'); c2.setAttribute('stroke','var(--accent)'); c2.setAttribute('stroke-width','2.5'); c2.setAttribute('stroke-linecap','round'); var circ=2*Math.PI*13; c2.setAttribute('stroke-dasharray',String(circ)); c2.setAttribute('stroke-dashoffset',String(circ-circ*rate)); g.appendChild(c2); ringSvg.appendChild(g); el.insertBefore(ringSvg,el.firstChild); }
     (function(d2,ds2){ el.addEventListener('click', function(){ showDD(d2,ds2); }); })(day,ds);
     grid.appendChild(el);
   }
@@ -1467,6 +1528,60 @@ document.getElementById('btn-export').addEventListener('click', function(){
 });
 document.getElementById('btn-clear').addEventListener('click', function(){
   if(confirm('确认清除所有数据？此操作无法撤销。')){ localStorage.removeItem(DB_KEY); location.reload(); }
+});
+
+// ── TODO ─────────────────────────────────────────────────
+function renderTodos(){
+  var list = document.getElementById('todo-list');
+  list.innerHTML = '';
+  db.todos.forEach(function(todo){
+    var item = document.createElement('div');
+    item.className = 'todo-item'+(todo.done?' done':'');
+    (function(tid, t){ item.addEventListener('click', function(e){
+      if(e.target.closest('.todo-del')) return;
+      t.done = !t.done; saveDB(); renderTodos();
+    }); })(todo.id, todo);
+    var cb = document.createElement('div');
+    cb.className = 'todo-cb'+(todo.done?' done':'');
+    cb.innerHTML = todo.done?'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':'';
+    var text = document.createElement('div');
+    text.className = 'todo-text';
+    text.textContent = todo.text;
+    (function(tid, ot){ text.addEventListener('dblclick', function(){
+      var newText = prompt('编辑待办：', ot.text);
+      if(newText && newText.trim()){
+        ot.text = newText.trim(); saveDB(); renderTodos();
+      }
+    }); })(todo.id, todo);
+    var del = document.createElement('div');
+    del.className = 'todo-del';
+    del.innerHTML = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    (function(tid){ del.addEventListener('click', function(e){
+      e.stopPropagation();
+      db.todos = db.todos.filter(function(x){ return x.id!==tid; });
+      saveDB(); renderTodos();
+    }); })(todo.id);
+    item.appendChild(cb);
+    item.appendChild(text);
+    item.appendChild(del);
+    list.appendChild(item);
+  });
+}
+document.getElementById('todo-add-btn').addEventListener('click', function(){
+  document.getElementById('fi-todo').value = '';
+  openModal('m-todo');
+  setTimeout(function(){ document.getElementById('fi-todo').focus(); }, 300);
+});
+document.getElementById('todo-save-btn').addEventListener('click', function(){
+  var text = document.getElementById('fi-todo').value.trim();
+  if(!text){ showToast('请输入待办内容'); return; }
+  db.todos.push({ id: uid(), text: text, done: false, date: today() });
+  saveDB(); closeModal('m-todo'); renderTodos(); showToast('待办已添加');
+});
+document.getElementById('todo-cancel-btn').addEventListener('click', function(){ closeModal('m-todo'); });
+document.getElementById('m-todo-close').addEventListener('click', function(){ closeModal('m-todo'); });
+document.getElementById('fi-todo').addEventListener('keydown', function(e){
+  if(e.key==='Enter') document.getElementById('todo-save-btn').click();
 });
 
 // ── FOCUS MODE ─────────────────────────────────────────────
