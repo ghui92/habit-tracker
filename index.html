@@ -31,10 +31,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent}
 html, body { height: 100%; overflow-x: hidden}
 body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--bg); color: var(--text)}
-.bg-blob { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0}
-.bb1 { width:380px;height:380px;background:radial-gradient(circle,rgba(168,198,184,0.38),transparent 70%);top:-120px;right:-80px}
-.bb2 { width:300px;height:300px;background:radial-gradient(circle,rgba(164,225,0,0.12),transparent 70%);bottom:120px;left:-80px}
-.bb3 { width:260px;height:260px;background:radial-gradient(circle,rgba(111,140,130,0.20),transparent 70%);top:45%;right:-60px}
+/* bg-blobs removed - filter:blur(100px) kills mobile GPU over HTTPS */
 #app { position:relative;z-index:1;max-width:430px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:80px}
 
 
@@ -43,7 +40,7 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .nav-bar {
   position:fixed;bottom:0;left:50%;transform:translateX(-50%);
   width:100%;max-width:430px;
-  background:rgba(245,245,245,0.78);
+  background:rgba(245,245,245,0.88);
   border-top:1px solid var(--border);
   display:flex;z-index:100;
   padding:8px 0 max(8px,env(safe-area-inset-bottom))}
@@ -56,7 +53,7 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .nav-item.active span { color:var(--accent);font-weight:600}
 .pg-header {
   padding:28px 20px 10px;position:sticky;top:0;
-  background:rgba(245,245,245,0.78);z-index:50;border-bottom:1px solid var(--border2)}
+  background:rgba(245,245,245,0.88);z-index:50;border-bottom:1px solid var(--border2)}
 .pg-header .row { display:flex;align-items:center;justify-content:space-between}
 .pg-title { font-size:22px;font-weight:600;letter-spacing:.01em}
 .hbtn { width:36px;height:36px;background:var(--surface);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s}
@@ -526,9 +523,7 @@ textarea.fi { resize:none;height:72px}
 <base target="_blank">
 </head>
 <body>
-<div class="bg-blob bb1"></div>
-<div class="bg-blob bb2"></div>
-<div class="bg-blob bb3"></div>
+<!-- bg-blobs removed: filter:blur(100px) kills mobile GPU on HTTPS -->
 <div id="app">
 
 <!-- HOME -->
