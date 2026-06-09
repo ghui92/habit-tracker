@@ -2290,7 +2290,7 @@ document.getElementById('import-file').addEventListener('change', function(e){
   reader.readAsText(file);
 });
 document.getElementById('btn-clear').addEventListener('click', function(){
-  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.clear();idbOpen().then(function(idb){var tx=idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('db');setTimeout(function(){location.reload()},300)}).catch(function(){location.reload()})})});
+  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.clear();localStorage.setItem('habitpwa_inited','1');idbOpen().then(function(idb){var tx=idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('db');setTimeout(function(){location.reload()},300)}).catch(function(){location.reload()})})});
 
 // ── TODO ─────────────────────────────────────────────────
 function renderTodos(){
