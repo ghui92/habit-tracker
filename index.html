@@ -1084,15 +1084,55 @@ var ICON_CATS = {
 function getIconSvg(key){ return ICONS[key] || ICONS.book}
 
 // ── DATA ──────────────────────────────────────────────────
-var DB_KEY = 'habitpwa_v4';
+var DB_KEY = 'habitpwa_v7';
+var DB_BAK = 'habitpwa_v7_bak';
+var IDB_NAME = 'HabitPWA';
+var IDB_STORE = 'state';
 var db = { name:'Hui', tasks:[], checkins:{}, gridCols:3, categories:['学习','健康','生活','其他'] };
 
+// ── IndexedDB persistence layer (survives iOS PWA updates) ──
+function idbOpen(){
+  return new Promise(function(res,rej){
+    var r=indexedDB.open(IDB_NAME,1);
+    r.onupgradeneeded=function(){ r.result.createObjectStore(IDB_STORE); };
+    r.onsuccess=function(){ res(r.result); };
+    r.onerror=function(){ rej(r.error); };
+  });
+}
+function idbSave(data){
+  idbOpen().then(function(idb){
+    var tx=idb.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(data,'db');
+  }).catch(function(){});
+}
+function idbLoad(cb){
+  idbOpen().then(function(idb){
+    var tx=idb.transaction(IDB_STORE,'readonly');
+    var req=tx.objectStore(IDB_STORE).get('db');
+    req.onsuccess=function(){ cb(req.result); };
+    req.onerror=function(){ cb(null); };
+  }).catch(function(){ cb(null); });
+}
+
 function loadDB(){
-  try { var r=localStorage.getItem(DB_KEY); if(r) Object.assign(db,JSON.parse(r))} catch(e){}
+  var loaded=false;
+  // 1. Try localStorage primary
+  try { var r=localStorage.getItem(DB_KEY); if(r){ var d=JSON.parse(r); if(d&&d.tasks&&d.checkins){ Object.assign(db,d); loaded=true; }}} catch(e){}
+  // 2. Try localStorage backup
+  if(!loaded){ try { var r2=localStorage.getItem(DB_BAK); if(r2){ var d2=JSON.parse(r2); if(d2&&d2.tasks&&d2.checkins){ Object.assign(db,d2); loaded=true; }}} catch(e){}}
+  // 3. Try IndexedDB (most persistent)
+  if(!loaded){
+    try {
+      var idbReq=new XMLHttpRequest();
+      // Sync fallback: flag to check after init
+      window._needsIDBRestore=true;
+    }catch(e){}
+  }
   if(!db.categories) db.categories = ['学习','健康','生活','其他'];
   if(!db.todos) db.todos = [];
   if(!db.focusSessions) db.focusSessions = [];
-  if(!db.tasks.length){
+  if(!loaded && !localStorage.getItem('habitpwa_inited')){
+    localStorage.setItem('habitpwa_inited','1');
     var defs=[
       {name:'英语单词',icon:'book',category:'学习',color:'#7a94b0',duration:20,note:'每天学习新单词',notify:true,frequency:'daily',weeklyDays:[],chapters:{total:30,current:15},tags:[]},
       {name:'运动健身',icon:'run',category:'健康',color:'#8aaa96',duration:30,note:'',notify:true,frequency:'daily',weeklyDays:[],chapters:{total:0,current:0},tags:[]},
@@ -1103,8 +1143,26 @@ function loadDB(){
     ];
     defs.forEach(function(d){ d.id=uid(); db.tasks.push(d)});
     saveDB()}
+  // After init, try to restore from IndexedDB
+  if(window._needsIDBRestore){
+    idbLoad(function(idbData){
+      if(idbData && idbData.tasks && idbData.checkins && idbData.tasks.length>0){
+        Object.assign(db,idbData);
+        saveDB();
+        if(curPage==='home') renderHome();
+        if(curPage==='cal') renderCal();
+        showToast('数据已从云端恢复');
+      }
+    });
+  }
 }
-function saveDB(){ try{ localStorage.setItem(DB_KEY,JSON.stringify(db))}catch(e){} }
+function saveDB(){
+  var json=JSON.stringify(db);
+  try{ localStorage.setItem(DB_KEY,json)}catch(e){}
+  try{ localStorage.setItem(DB_BAK,json)}catch(e){}
+  // Mirror to IndexedDB (survives iOS PWA storage purge)
+  idbSave(db);
+}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5)}
 function today(){ var d=new Date(); return fd(d)}
 function fd(d){ return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
@@ -2213,7 +2271,7 @@ document.getElementById('btn-export').addEventListener('click', function(){
     showToast('数据已导出')}catch(e){showToast('导出失败，请重试')}
 });
 document.getElementById('btn-clear').addEventListener('click', function(){
-  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.removeItem(DB_KEY); location.reload()})});
+  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.removeItem(DB_KEY);localStorage.removeItem(DB_BAK);localStorage.removeItem('habitpwa_inited');idbOpen().then(function(idb){var tx=idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('db');setTimeout(function(){location.reload()},300)}).catch(function(){location.reload()})})});
 
 // ── TODO ─────────────────────────────────────────────────
 function renderTodos(){
