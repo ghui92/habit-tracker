@@ -660,8 +660,14 @@ textarea.fi { resize:none;height:72px}
           <div class="mi-text"><div class="mi-label">导出数据</div><div class="mi-desc">下载 JSON 格式备份</div></div>
           <div class="mi-arrow"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
         </div>
+        <div class="mi" id="btn-import">
+          <div class="mi-icon" style="background:var(--accent-light)"><svg viewBox="0 0 24 24"><polyline points="17 8 12 3 7 8" stroke="var(--accent)" stroke-width="1.5" fill="none"/><line x1="12" y1="3" x2="12" y2="15" stroke="var(--text2)" stroke-width="1.5"/></svg></div>
+          <div class="mi-text"><div class="mi-label">导入数据</div><div class="mi-desc">从 JSON 备份恢复</div></div>
+          <div class="mi-arrow"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
       </div>
     </div>
+    <input type="file" id="import-file" accept=".json" style="display:none">
     <div class="danger-btn" id="btn-clear">清除所有数据</div>
     <div style="height:10px;"></div>
   </div>
@@ -1084,50 +1090,29 @@ var ICON_CATS = {
 function getIconSvg(key){ return ICONS[key] || ICONS.book}
 
 // ── DATA ──────────────────────────────────────────────────
-var DB_KEY = 'habitpwa_v7';
-var DB_BAK = 'habitpwa_v7_bak';
+// ── DATA ──────────────────────────────────────────────────
+// Permanent storage keys - NEVER CHANGE THESE
+var DB_KEY = 'habitpwa_data';
+var DB_BAK = 'habitpwa_data_bak';
 var IDB_NAME = 'HabitPWA';
 var IDB_STORE = 'state';
+// Known old keys to auto-migrate from
+var OLD_KEYS = ['habitpwa_v6','habitpwa_v6_bak','habitpwa_v4'];
 var db = { name:'Hui', tasks:[], checkins:{}, gridCols:3, categories:['学习','健康','生活','其他'] };
 
-// ── IndexedDB persistence layer (survives iOS PWA updates) ──
-function idbOpen(){
-  return new Promise(function(res,rej){
-    var r=indexedDB.open(IDB_NAME,1);
-    r.onupgradeneeded=function(){ r.result.createObjectStore(IDB_STORE); };
-    r.onsuccess=function(){ res(r.result); };
-    r.onerror=function(){ rej(r.error); };
-  });
-}
-function idbSave(data){
-  idbOpen().then(function(idb){
-    var tx=idb.transaction(IDB_STORE,'readwrite');
-    tx.objectStore(IDB_STORE).put(data,'db');
-  }).catch(function(){});
-}
-function idbLoad(cb){
-  idbOpen().then(function(idb){
-    var tx=idb.transaction(IDB_STORE,'readonly');
-    var req=tx.objectStore(IDB_STORE).get('db');
-    req.onsuccess=function(){ cb(req.result); };
-    req.onerror=function(){ cb(null); };
-  }).catch(function(){ cb(null); });
-}
+function idbOpen(){ return new Promise(function(res,rej){ var r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=function(){ r.result.createObjectStore(IDB_STORE); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+function idbSave(data){ idbOpen().then(function(idb){ var tx=idb.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(data,'db'); }).catch(function(){}); }
 
 function loadDB(){
   var loaded=false;
-  // 1. Try localStorage primary
-  try { var r=localStorage.getItem(DB_KEY); if(r){ var d=JSON.parse(r); if(d&&d.tasks&&d.checkins){ Object.assign(db,d); loaded=true; }}} catch(e){}
-  // 2. Try localStorage backup
-  if(!loaded){ try { var r2=localStorage.getItem(DB_BAK); if(r2){ var d2=JSON.parse(r2); if(d2&&d2.tasks&&d2.checkins){ Object.assign(db,d2); loaded=true; }}} catch(e){}}
-  // 3. Try IndexedDB (most persistent)
-  if(!loaded){
-    try {
-      var idbReq=new XMLHttpRequest();
-      // Sync fallback: flag to check after init
-      window._needsIDBRestore=true;
-    }catch(e){}
-  }
+  // 1. Try primary key
+  try { var r=localStorage.getItem(DB_KEY); if(r){ var d=JSON.parse(r); if(d&&d.checkins&&(d.tasks||d.checkins)){ Object.assign(db,d); loaded=true; }}} catch(e){}
+  // 2. Try backup
+  if(!loaded){ try { var r2=localStorage.getItem(DB_BAK); if(r2){ var d2=JSON.parse(r2); if(d2&&d2.checkins){ Object.assign(db,d2); loaded=true; }}} catch(e){}}
+  // 3. Migrate from old keys (one-time)
+  if(!loaded){ OLD_KEYS.forEach(function(k){ try { var r3=localStorage.getItem(k); if(r3&&!loaded){ var d3=JSON.parse(r3); if(d3&&d3.checkins){ Object.assign(db,d3); loaded=true; }}} catch(e){}}) }
+  // 4. Try IndexedDB
+  if(!loaded){ window._needsIDBRestore=true; }
   if(!db.categories) db.categories = ['学习','健康','生活','其他'];
   if(!db.todos) db.todos = [];
   if(!db.focusSessions) db.focusSessions = [];
@@ -1143,24 +1128,26 @@ function loadDB(){
     ];
     defs.forEach(function(d){ d.id=uid(); db.tasks.push(d)});
     saveDB()}
-  // After init, try to restore from IndexedDB
+  // Async restore from IndexedDB (survives PWA updates)
   if(window._needsIDBRestore){
-    idbLoad(function(idbData){
-      if(idbData && idbData.tasks && idbData.checkins && idbData.tasks.length>0){
-        Object.assign(db,idbData);
-        saveDB();
-        if(curPage==='home') renderHome();
-        if(curPage==='cal') renderCal();
-        showToast('数据已从云端恢复');
-      }
-    });
+    idbOpen().then(function(idb){
+      var tx=idb.transaction(IDB_STORE,'readonly');
+      var req=tx.objectStore(IDB_STORE).get('db');
+      req.onsuccess=function(){
+        if(req.result && req.result.checkins && Object.keys(req.result.checkins).length>0){
+          Object.assign(db,req.result);
+          saveDB();
+          if(curPage==='home') renderHome();
+          showToast('数据已恢复');
+        }
+      };
+    }).catch(function(){});
   }
 }
 function saveDB(){
   var json=JSON.stringify(db);
-  try{ localStorage.setItem(DB_KEY,json)}catch(e){}
-  try{ localStorage.setItem(DB_BAK,json)}catch(e){}
-  // Mirror to IndexedDB (survives iOS PWA storage purge)
+  localStorage.setItem(DB_KEY,json);
+  localStorage.setItem(DB_BAK,json);
   idbSave(db);
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5)}
@@ -2270,8 +2257,40 @@ document.getElementById('btn-export').addEventListener('click', function(){
     var a=document.createElement('a'); a.href=url; a.download='habit_backup.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     showToast('数据已导出')}catch(e){showToast('导出失败，请重试')}
 });
+document.getElementById('btn-import').addEventListener('click', function(){
+  document.getElementById('import-file').click();
+});
+document.getElementById('import-file').addEventListener('change', function(e){
+  var file=e.target.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      var data=JSON.parse(ev.target.result);
+      if(!data.checkins){ showToast('格式错误：缺少打卡数据'); return; }
+      showConfirm('导入将合并数据（保留已有+新增备份中的记录），继续？', function(){
+        var merged={};
+        Object.keys(db.checkins).forEach(function(k){ merged[k]=db.checkins[k]; });
+        Object.keys(data.checkins).forEach(function(k){
+          if(!merged[k]) merged[k]={};
+          Object.keys(data.checkins[k]).forEach(function(tid){ merged[k][tid]=data.checkins[k][tid]; });
+        });
+        var taskMap={};
+        db.tasks.forEach(function(t){ taskMap[t.id]=t; });
+        (data.tasks||[]).forEach(function(t){ if(!taskMap[t.id]){ db.tasks.push(t); taskMap[t.id]=t; }});
+        if(data.name) db.name=data.name;
+        if(data.todos) data.todos.forEach(function(t){ if(!db.todos.find(function(x){return x.id===t.id})) db.todos.push(t); });
+        db.checkins=merged;
+        saveDB();
+        renderHome();renderTodos();
+        showToast('数据已导入');
+      });
+    }catch(ex){ showToast('JSON 解析失败'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+});
 document.getElementById('btn-clear').addEventListener('click', function(){
-  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.removeItem(DB_KEY);localStorage.removeItem(DB_BAK);localStorage.removeItem('habitpwa_inited');idbOpen().then(function(idb){var tx=idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('db');setTimeout(function(){location.reload()},300)}).catch(function(){location.reload()})})});
+  showConfirm('确认清除所有数据？此操作无法撤销。', function(){ localStorage.clear();idbOpen().then(function(idb){var tx=idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete('db');setTimeout(function(){location.reload()},300)}).catch(function(){location.reload()})})});
 
 // ── TODO ─────────────────────────────────────────────────
 function renderTodos(){
