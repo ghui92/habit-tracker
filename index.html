@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#F5F6F4">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Habit">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b7a6e'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='60' font-weight='700' fill='white' font-family='-apple-system, PingFang SC, sans-serif'%3EG%3C/text%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b7a6e'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='60' font-weight='700' fill='white' font-family='-apple-system, PingFang SC, sans-serif'%3EG%3C/text%3E%3C/svg%3E">
@@ -27,23 +27,20 @@
   --done-text: #5a7a30;
   --heat1: #DCEEE5; --heat2: #A8C6B8; --heat3: #6F8C82; --heat4: #4A665D;
   --r: 22px; --r2: 16px; --r3: 32px;
-  --shadow: 0 8px 32px rgba(50,80,70,0.10); --shadow2: 0 2px 16px rgba(50,80,70,0.07)}
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent}
+  --shadow: 0 4px 16px rgba(50,80,70,0.08); --shadow2: 0 2px 8px rgba(50,80,70,0.06)}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation}
 html, body { height: 100%; overflow-x: hidden}
 body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--bg); color: var(--text)}
-.bg-blob { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0}
-.bb1 { width:380px;height:380px;background:radial-gradient(circle,rgba(168,198,184,0.38),transparent 70%);top:-120px;right:-80px}
-.bb2 { width:300px;height:300px;background:radial-gradient(circle,rgba(164,225,0,0.12),transparent 70%);bottom:120px;left:-80px}
-.bb3 { width:260px;height:260px;background:radial-gradient(circle,rgba(111,140,130,0.20),transparent 70%);top:45%;right:-60px}
 #app { position:relative;z-index:1;max-width:430px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:80px}
 
 
-.page { display:none;flex-direction:column;flex:1;content-visibility:auto;contain:style layout paint}
-.page.active { display:flex;content-visibility:visible}
+.page { display:none;flex-direction:column;flex:1}
+.page.active { display:flex}
 .nav-bar {
   position:fixed;bottom:0;left:50%;transform:translateX(-50%);
   width:100%;max-width:430px;
-  background:var(--glass);-webkit-border-top:1px solid var(--border);
+  background:rgba(245,246,244,0.92);
+  border-top:1px solid var(--border);
   display:flex;z-index:100;
   padding:8px 0 max(8px,env(safe-area-inset-bottom))}
 .nav-item { flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;cursor:pointer;transition:all .08s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
@@ -525,9 +522,7 @@ textarea.fi { resize:none;height:72px}
 <base target="_blank">
 </head>
 <body>
-<div class="bg-blob bb1"></div>
-<div class="bg-blob bb2"></div>
-<div class="bg-blob bb3"></div>
+<!-- bg-blobs removed for performance -->
 <div id="app">
 
 <!-- HOME -->
@@ -1098,7 +1093,7 @@ function loadDB(){
     defs.forEach(function(d){ d.id=uid(); db.tasks.push(d)});
     saveDB()}
 }
-function saveDB(){ try{ localStorage.setItem(DB_KEY,JSON.stringify(db))}catch(e){} }
+function saveDB(){ try{ localStorage.setItem(DB_KEY,JSON.stringify(db))}catch(e){} _streakCache.val=null;_monthRateCache.val=null;}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5)}
 function today(){ var d=new Date(); return fd(d)}
 function fd(d){ return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
@@ -1139,7 +1134,7 @@ function navTo(pg){
   document.querySelectorAll('.nav-item').forEach(function(el){
     el.classList.toggle('active', el.dataset.nav===pg)});
   requestAnimationFrame(function(){
-    if(pg==='home') renderHome();
+    if(pg==='home') { renderHome(); renderTodos(); }
     if(pg==='cal')  renderCal();
     if(pg==='stats') renderStats('week');
     if(pg==='profile') renderProfile()})}
@@ -1179,7 +1174,7 @@ function updateClock(){
   if(greetEl) greetEl.innerHTML=greet+'，<span id="g-name">'+(db.name||'Hui')+'</span>';
   var tagEl=document.getElementById('g-tagline');
   if(tagEl) tagEl.textContent=tag}
-setInterval(updateClock,1000);
+// setInterval(updateClock,1000); // REMOVED: no clock displayed, no need for per-second polling
 updateClock();
 
 function renderHome(){
@@ -1213,60 +1208,56 @@ function renderHome(){
   document.getElementById('grid-toggle').textContent = cols===3?'四宫格':'九宫格';
   var grid = document.getElementById('task-grid');
   grid.className = 'task-grid'+(cols===2?' g2':'');
-  // Build grid as single HTML string (much faster than 6× createElement)
-  var cardsHtml='';
+  grid.innerHTML = '';
+
+  var frag=document.createDocumentFragment();
   tasks.forEach(function(task){
     var isSk = isSkipped(task, tk);
     var isDone = !isSk && ch[task.id]!==undefined;
     var recVal = ch[task.id];
     var minsD = ciDur(recVal);
+    var recNote = ciNote(recVal);
+    var recTags = ciTagsFromRec(recVal);
     var prog = Math.min(1, minsD/(task.duration||20));
-    var borderClr=isDone?'var(--accent)':task.color;
-    var doneCls=(isDone?' done':'')+(isSk?' sk':'');
-    var iconBg=isSk?'var(--surface2)':(isDone?'var(--done-icon-bg)':task.color+'20');
-    var nameClr=isSk?'var(--text3)':(isDone?'var(--done-text)':task.color);
-    var checkMark=isDone?'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':'';
-    var chapterLine='';
-    if(task.chapters && task.chapters.total > 0){
-      var chapTxt=isDone?'第'+(task.chapters.current+1)+'/'+task.chapters.total+'章':'第'+task.chapters.current+'/'+task.chapters.total+'章';
-      chapterLine='<div class="tc-chapter" style="font-size:9px;color:var(--text2);margin-top:2px;">'+chapTxt+'</div>'}
-    var progLine='';
-    if(isSk){ progLine='<div class="tc-prog" style="color:var(--text3);">今日休息</div>'}
-    else if(isDone){ progLine='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;"><div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:'+prog*100+'%;background:var(--done-track);opacity:.7;"></div></div><div class="tc-prog" style="color:var(--done-icon-stroke);font-weight:600;white-space:nowrap;">'+minsD+'/'+task.duration+'分</div></div>'}
-    else{ progLine='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;"><div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:0%;background:'+task.color+';opacity:.3;"></div></div><div class="tc-prog" style="color:var(--text3);white-space:nowrap;">0/'+task.duration+'分</div></div>'}
-    cardsHtml+='<div class="tc'+doneCls+'" '+(isSk?'':'style="border-left:3px solid '+borderClr+'"')+' data-tid="'+task.id+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;"><div class="tc-icon-wrap" style="background:'+iconBg+'">'+getIconSvg(task.icon)+'</div><div class="tc-check">'+checkMark+'</div></div><div style="margin-top:8px;flex:1;"><div class="tc-name" style="color:'+nameClr+'">'+task.name+'</div>'+chapterLine+'</div><div style="margin-top:auto">'+progLine+'</div></div>'});
-  grid.innerHTML=cardsHtml;
-  // Single delegation for all task-card clicks
-  grid._delegated||(grid.addEventListener('click',function(e){var c=e.target.closest('.tc');if(c&&c.dataset.tid){var t=db.tasks.find(function(x){return x.id===c.dataset.tid});if(t)openCI(t)}},{passive:true}),grid._delegated=1);
-  renderTodos()}
+    var card = document.createElement('div');
+    card.className = 'tc'+(isDone?' done':'')+(isSk?' sk':'');
+    if(!isSk) card.style.borderLeft = '3px solid '+(isDone?'var(--accent)':task.color);
 
-// Lightweight update after check-in: only touch the changed card + stats
-function updateHomeStats(){
-  var tk=today(),ch=db.checkins[tk]||{},tasks=db.tasks.filter(function(t){return isTaskActiveToday(t)});
-  var done=tasks.filter(function(t){return ch[t.id]!==undefined&&!isSkipped(t,tk)}).length,total=tasks.length,pct=total===0?0:Math.round(done/total*100);
-  document.getElementById('ring-pct').textContent=pct+'%';
-  document.getElementById('ring-sub').textContent=done+'/'+total;
-  var circ=2*Math.PI*23;
-  document.getElementById('ring-fg').style.strokeDashoffset=(circ-circ*pct/100);
-  document.getElementById('st-streak').textContent=calcStreak();
-  document.getElementById('st-mins').textContent=sumCIDurs(ch);
-  document.getElementById('st-focus').textContent=getTodayFocusMins();
-  document.getElementById('st-mrate').textContent=calcMonthRate()}
-function updateTaskCard(task,tk){
-  var card=document.querySelector('#task-grid .tc[data-tid="'+task.id+'"]');
-  if(!card)return;
-  var ch=(db.checkins[tk]||{}),isSk=isSkipped(task,tk),isDone=!isSk&&ch[task.id]!==undefined;
-  var minsD=ciDur(ch[task.id]),prog=Math.min(1,minsD/(task.duration||20));
-  card.className='tc'+(isDone?' done':'')+(isSk?' sk':'');
-  card.style.borderLeft=isSk?'':'3px solid '+(isDone?'var(--accent)':task.color);
-  card.innerHTML=
-    '<div style="display:flex;align-items:flex-start;justify-content:space-between;"><div class="tc-icon-wrap" style="background:'+(isSk?'var(--surface2)':(isDone?'var(--done-icon-bg)':task.color+'20'))+'">'+getIconSvg(task.icon)+'</div><div class="tc-check">'+(isDone?'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div></div>'+
-    '<div style="margin-top:8px;flex:1;"><div class="tc-name" style="color:'+(isSk?'var(--text3)':(isDone?'var(--done-text)':task.color))+'">'+task.name+'</div>'+
-    (task.chapters&&task.chapters.total>0?'<div class="tc-chapter" style="font-size:9px;color:var(--text2);margin-top:2px;">'+(isDone?'第'+(task.chapters.current+1)+'/'+task.chapters.total+'章':'第'+task.chapters.current+'/'+task.chapters.total+'章')+'</div>':'')+
-    '</div><div style="margin-top:auto">'+
-    (isSk?'<div class="tc-prog" style="color:var(--text3);">今日休息</div>':(isDone?'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;"><div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:'+prog*100+'%;background:var(--done-track);opacity:.7;"></div></div><div class="tc-prog" style="color:var(--done-icon-stroke);font-weight:600;white-space:nowrap;">'+minsD+'/'+task.duration+'分</div></div>':'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;"><div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:0%;background:'+task.color+';opacity:.3;"></div></div><div class="tc-prog" style="color:var(--text3);white-space:nowrap;">0/'+task.duration+'分</div></div>'))+
-    '</div>'}
+    var chapterLine = '';
+    if(task.chapters && task.chapters.total > 0){
+      var chapTxt = isDone ? '第'+(task.chapters.current+1)+' / '+task.chapters.total+'章' : '第'+task.chapters.current+' / '+task.chapters.total+'章';
+      chapterLine = '<div class="tc-chapter" style="font-size:9px;color:var(--text2);margin-top:2px;">'+chapTxt+'</div>'}
+    var progLine = '';
+    if(isSk){
+      progLine = '<div class="tc-prog" style="color:var(--text3);">今日休息</div>'} else if(isDone){
+      progLine = '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">'+
+        '<div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:'+prog*100+'%;background:var(--done-track);opacity:.7;"></div></div>'+
+        '<div class="tc-prog" style="color:var(--done-icon-stroke);font-weight:600;white-space:nowrap;">'+minsD+'/'+task.duration+'分</div>'+
+        '</div>'} else {
+      progLine = '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">'+
+        '<div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:0%;background:'+task.color+';opacity:.3;"></div></div>'+
+        '<div class="tc-prog" style="color:var(--text3);white-space:nowrap;">0/'+task.duration+'分</div>'+
+        '</div>'}
+    card.innerHTML =
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;">'+
+        '<div class="tc-icon-wrap" style="background:'+(isSk?'var(--surface2)':(isDone?'var(--done-icon-bg)':task.color+'20'))+'">'+getIconSvg(task.icon)+'</div>'+
+        '<div class="tc-check">'+(isDone?'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'+
+      '</div>'+
+      '<div style="margin-top:8px;flex:1;">'+
+        '<div class="tc-name" style="color:'+(isSk?'var(--text3)':(isDone?'var(--done-text)':task.color))+'">'+task.name+'</div>'+
+        chapterLine+
+      '</div>'+
+      '<div style="margin-top:auto">'+
+        progLine+
+      '</div>';
+    card.addEventListener('click', function(){ openCI(task)}, {passive:true});
+    frag.appendChild(card)});
+  grid.appendChild(frag);}
+
+var _streakCache={val:null,day:''};
 function calcStreak(){
+  var t=today();
+  if(_streakCache.day===t && _streakCache.val!==null) return _streakCache.val;
   var s=0, d=new Date();
   for(var i=0;i<365;i++){
     var k=fd(d);
@@ -1275,8 +1266,12 @@ function calcStreak(){
     if(countCheckins(ch)===0 && Object.keys(ch).length>0){ s++; d.setDate(d.getDate()-1); continue}
     if(Object.keys(ch).length===0) break;
     s++; d.setDate(d.getDate()-1)}
+  _streakCache={val:s,day:t};
   return s}
+var _monthRateCache={val:null,day:''};
 function calcMonthRate(){
+  var t=today();
+  if(_monthRateCache.day===t && _monthRateCache.val!==null) return _monthRateCache.val;
   var now=new Date(), y=now.getFullYear(), m=now.getMonth(), today2=now.getDate();
   var done=0,tot=0;
   for(var d=1;d<=today2;d++){
@@ -1291,7 +1286,8 @@ function calcMonthRate(){
       return true});
     if(activeTasks.length>0){ tot++; if(countCheckins(ch)/activeTasks.length>=.5) done++}
   }
-  return tot===0?0:Math.round(done/tot*100)}
+  _monthRateCache={val:tot===0?0:Math.round(done/tot*100),day:t};
+  return _monthRateCache.val}
 
 document.getElementById('grid-toggle').addEventListener('click', function(){
   db.gridCols = db.gridCols===3?2:3;
@@ -1421,10 +1417,10 @@ document.getElementById('ci-confirm-btn').addEventListener('click', function(){
     t: ciTags.slice()
   };
   saveDB(); closeModal('m-ci'); showToast('✓ 已打卡 '+ciTask.name+'！');
+  // Re-render calendar day detail if we're on calendar page with matching date
   requestAnimationFrame(function(){
     if(curPage==='cal' && curDDDate===selDate) renderDD();
-    if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
-    else if(curPage==='profile') renderProfile()})});
+    renderHome()})});
 document.getElementById('ci-undo-btn').addEventListener('click', function(){
   if(!ciTask)return;
   var tk=selDate||today();
@@ -1432,8 +1428,7 @@ document.getElementById('ci-undo-btn').addEventListener('click', function(){
   saveDB(); closeModal('m-ci'); showToast('已撤销 '+ciTask.name);
   requestAnimationFrame(function(){
     if(curPage==='cal' && curDDDate===selDate) renderDD();
-    if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
-    else if(curPage==='profile') renderProfile()})});
+    renderHome()})});
 document.getElementById('ci-skip-btn').addEventListener('click', function(){
   if(!ciTask)return;
   var tk=selDate||today();
@@ -1443,8 +1438,7 @@ document.getElementById('ci-skip-btn').addEventListener('click', function(){
   saveDB(); closeModal('m-ci'); showToast('已标记休息 '+ciTask.name);
   requestAnimationFrame(function(){
     if(curPage==='cal' && curDDDate===selDate) renderDD();
-    if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
-    else if(curPage==='profile') renderProfile()})});
+    renderHome()})});
 document.getElementById('m-ci-close').addEventListener('click', function(){ closeModal('m-ci')});
 document.getElementById('ci-edit-btn').addEventListener('click', function(){
   if(!ciTask) return;
@@ -1695,16 +1689,19 @@ function buildCal(){
   var calMonthEl=document.getElementById('cal-month-days');
   if(calMonthEl) calMonthEl.textContent=mDays+' 天';
   var grid=document.getElementById('cal-grid');
-  var html='';
-  WDAYS.forEach(function(d){ html+='<div class="cal-dh">'+d+'</div>'});
+  grid.innerHTML='';
+  var frag=document.createDocumentFragment();
+  WDAYS.forEach(function(d){ var h=document.createElement('div'); h.className='cal-dh'; h.textContent=d; frag.appendChild(h)});
   var first=new Date(calY,calM,1).getDay();
   var dim=new Date(calY,calM+1,0).getDate();
   var prev=new Date(calY,calM,0).getDate();
   var nowStr=fd(new Date());
-  for(var i=first-1;i>=0;i--){ html+='<div class="cal-d om">'+(prev-i)+'</div>'}
+  for(var i=first-1;i>=0;i--){ var x=document.createElement('div'); x.className='cal-d om'; x.textContent=prev-i; frag.appendChild(x)}
   for(var day=1;day<=dim;day++){
     var ds=calY+'-'+p2(calM+1)+'-'+p2(day);
-    var cls='cal-d'+(ds===nowStr?' td':'');
+    var el=document.createElement('div');
+    el.className='cal-d'+(ds===nowStr?' td':'');
+    el.textContent=day;
     var ch=db.checkins[ds]||{};
     var activeCount = db.tasks.filter(function(t){
       if(t.frequency === 'once') return false;
@@ -1714,15 +1711,12 @@ function buildCal(){
         return t.weeklyDays.indexOf(d) !== -1}
       return true}).length;
     var done=countCheckins(ch), tot=activeCount||1, rate=done/tot;
-    var ringHtml='';
-    if(done>0){
-      var circ=2*Math.PI*13;
-      ringHtml='<svg viewBox="0 0 32 32" width="32" height="32" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"><g transform="rotate(-90 16 16)"><circle cx="16" cy="16" r="13" fill="none" stroke="var(--border2)" stroke-width="2.5"/><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+(circ-circ*rate)+'"/></g></svg>'}
-    html+='<div class="'+cls+'" data-cd="'+ds+'">'+ringHtml+day+'</div>'}
+    if(done>0){ var ringSvg=document.createElementNS('http://www.w3.org/2000/svg','svg'); ringSvg.setAttribute('viewBox','0 0 32 32'); ringSvg.setAttribute('width','32'); ringSvg.setAttribute('height','32'); ringSvg.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;'; var g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('transform','rotate(-90 16 16)'); var c1=document.createElementNS('http://www.w3.org/2000/svg','circle'); c1.setAttribute('cx','16'); c1.setAttribute('cy','16'); c1.setAttribute('r','13'); c1.setAttribute('fill','none'); c1.setAttribute('stroke','var(--border2)'); c1.setAttribute('stroke-width','2.5'); g.appendChild(c1); var c2=document.createElementNS('http://www.w3.org/2000/svg','circle'); c2.setAttribute('cx','16'); c2.setAttribute('cy','16'); c2.setAttribute('r','13'); c2.setAttribute('fill','none'); c2.setAttribute('stroke','var(--accent)'); c2.setAttribute('stroke-width','2.5'); c2.setAttribute('stroke-linecap','round'); var circ=2*Math.PI*13; c2.setAttribute('stroke-dasharray',String(circ)); c2.setAttribute('stroke-dashoffset',String(circ-circ*rate)); g.appendChild(c2); ringSvg.appendChild(g); el.insertBefore(ringSvg,el.firstChild)}
+    (function(d2,ds2){ el.addEventListener('click', function(){ showDD(d2,ds2)}, {passive:true})})(day,ds);
+    frag.appendChild(el)}
   var tc=first+dim, rem=tc%7===0?0:7-tc%7;
-  for(var j=1;j<=rem;j++){ html+='<div class="cal-d om">'+j+'</div>'}
-  grid.innerHTML=html;
-  grid._delegated||(grid.addEventListener('click',function(e){var c=e.target.closest('[data-cd]');if(c){showDD(parseInt(c.textContent),c.dataset.cd)}},{passive:true}),grid._delegated=1);
+  for(var j=1;j<=rem;j++){ var y=document.createElement('div'); y.className='cal-d om'; y.textContent=j; frag.appendChild(y)}
+  grid.appendChild(frag);
 }
 document.getElementById('cal-prev').addEventListener('click', function(){ calM--; if(calM<0){calM=11;calY--} buildCal(); document.getElementById('day-detail').style.display='none'});
 document.getElementById('cal-next').addEventListener('click', function(){ calM++; if(calM>11){calM=0;calY++} buildCal(); document.getElementById('day-detail').style.display='none'});
@@ -1830,7 +1824,7 @@ function renderDD(){
           (function(task,dateStr){
             btnUndo.addEventListener('click',function(){
               if(db.checkins[dateStr]){ delete db.checkins[dateStr][task.id]; delete db.checkins[dateStr][task.id+'_sk']}
-              saveDB(); requestAnimationFrame(function(){ renderDD(); if(curPage==='home'){updateHomeStats();updateTaskCard(task,dateStr)}});
+              saveDB(); requestAnimationFrame(function(){ renderDD(); if(curPage==='home') renderHome()});
               showToast('已撤销 '+task.name)})})(t,ds);
           actRow.appendChild(btnUndo)}
       }
@@ -2146,26 +2140,35 @@ document.getElementById('btn-clear').addEventListener('click', function(){
 // ── TODO ─────────────────────────────────────────────────
 function renderTodos(){
   var list = document.getElementById('todo-list');
-  var html='';
+  list.innerHTML = '';
+  var frag=document.createDocumentFragment();
   db.todos.forEach(function(todo){
-    var doneCls=todo.done?' done':'';
-    var cbHtml=todo.done?'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':'';
-    html+='<div class="todo-item'+doneCls+'" data-tid="'+todo.id+'"><div class="todo-cb'+doneCls+'">'+cbHtml+'</div><div class="todo-text" data-edit="'+todo.id+'">'+ehtml(todo.text)+'</div><div class="todo-del" data-del="'+todo.id+'"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>'});
-  list.innerHTML=html;
-  list._delegated||(list.addEventListener('click',function(e){
-    var del=e.target.closest('[data-del]');
-    if(del){
-      var id=del.dataset.del;
-      db.todos=db.todos.filter(function(x){return x.id!==id});
-      saveDB(); renderTodos(); return}
-    var item=e.target.closest('[data-tid]');
-    if(item&&!e.target.closest('.todo-del')){
-      var todo=db.todos.find(function(x){return x.id===item.dataset.tid});
-      if(todo){todo.done=!todo.done;saveDB();renderTodos()}}
-  },{passive:true}),list._delegated=1);
-  // preserve dblclick to edit
-  list._dbldel||(list.addEventListener('dblclick',function(e){var t=e.target.closest('[data-edit]');if(t){var todo=db.todos.find(function(x){return x.id===t.dataset.edit});if(todo)showPrompt('待办内容',todo.text,function(v){todo.text=v;saveDB();renderTodos()})}},{passive:true}),list._dbldel=1)}
-function ehtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+    var item = document.createElement('div');
+    item.className = 'todo-item'+(todo.done?' done':'');
+    (function(tid, t){ item.addEventListener('click', function(e){
+      if(e.target.closest('.todo-del')) return;
+      t.done = !t.done; saveDB(); renderTodos()})})(todo.id, todo);
+    var cb = document.createElement('div');
+    cb.className = 'todo-cb'+(todo.done?' done':'');
+    cb.innerHTML = todo.done?'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':'';
+    var text = document.createElement('div');
+    text.className = 'todo-text';
+    text.textContent = todo.text;
+    (function(tid, ot){ text.addEventListener('dblclick', function(){
+      showPrompt('待办内容', ot.text, function(newText){
+        ot.text = newText; saveDB(); renderTodos()})})})(todo.id, todo);
+    var del = document.createElement('div');
+    del.className = 'todo-del';
+    del.innerHTML = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    (function(tid){ del.addEventListener('click', function(e){
+      e.stopPropagation();
+      db.todos = db.todos.filter(function(x){ return x.id!==tid});
+      saveDB(); renderTodos()})})(todo.id);
+    item.appendChild(cb);
+    item.appendChild(text);
+    item.appendChild(del);
+    frag.appendChild(item)});
+  list.appendChild(frag)}
 document.getElementById('todo-add-btn').addEventListener('click', function(){
   document.getElementById('fi-todo').value = '';
   openModal('m-todo');
@@ -2345,7 +2348,7 @@ function showToast(msg){ var t=document.getElementById('toast'); t.textContent=m
 
 // ── INIT ──────────────────────────────────────────────────
 loadDB();
-renderHome();
+renderHome();renderTodos();
 </script>
 </body>
 </html>
