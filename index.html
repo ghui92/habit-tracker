@@ -40,9 +40,10 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .nav-bar {
   position:fixed;bottom:0;left:50%;transform:translateX(-50%);
   width:100%;max-width:430px;
-  background:rgba(245,245,245,0.94);
+  background:var(--nav-bg,rgba(245,245,245,0.94));
   border-top:1px solid var(--border);
   display:flex;z-index:100;
+  box-shadow:0 -1px 8px rgba(0,0,0,0.06);
   padding:8px 0 max(8px,env(safe-area-inset-bottom))}
 .nav-item { flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;cursor:pointer;transition:all .08s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .nav-item .ni { width:26px;height:26px;display:flex;align-items:center;justify-content:center;transition:transform .08s}
@@ -53,7 +54,7 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .nav-item.active span { color:var(--accent);font-weight:600}
 .pg-header {
   padding:28px 20px 10px;position:sticky;top:0;
-  background:rgba(245,245,245,0.94);z-index:50;border-bottom:1px solid var(--border2)}
+  background:var(--header-bg,rgba(245,245,245,0.94));z-index:50;border-bottom:1px solid var(--border2)}
 .pg-header .row { display:flex;align-items:center;justify-content:space-between}
 .pg-title { font-size:22px;font-weight:600;letter-spacing:.01em}
 .hbtn { width:36px;height:36px;background:var(--surface);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s}
@@ -494,8 +495,7 @@ textarea.fi { resize:none;height:72px}
 .todo-list { display:flex;flex-direction:column;gap:8px}
 .todo-item {
   display:flex;align-items:center;gap:10px;padding:10px 14px;
-  background:rgba(255,255,255,0.55);
-  border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow2);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow2);
   transition:all .15s;cursor:pointer}
 .todo-item.done { opacity:.55}
 .todo-item:active { transform:scale(.98)}
@@ -2189,12 +2189,12 @@ var THEMES = {
             doneGlow:'rgba(76,122,98,0.18)', doneBorder:'rgba(76,122,98,0.28)', doneIconBg:'rgba(76,122,98,0.14)', doneIcon:'#2E5A45', doneTrack:'#4C7A62',
             doneText:'#2E5A45', heat1:'#DCE9E2', heat2:'#A7C7B8', heat3:'#4C7A62', heat4:'#2E5A45', accentLight:'rgba(76,122,98,0.12)', accentShadow:'rgba(76,122,98,0.35)',
             checkBg:'#4C7A62', sheetBg:'rgba(243,247,244,.95)' },
-  night:  { name:'月夜黑', primary:'#C5FF4A', accent:'#8AC840', bg:'#0D0D0D', bg2:'#181818', bg3:'#252525', glow:'rgba(197,255,74,0.10)',
+  night:  { name:'月夜黑', primary:'#9BBF7A', accent:'#6B8E4E', bg:'#0D0D0D', bg2:'#181818', bg3:'#252525', glow:'rgba(155,191,122,0.08)',
             text:'#EBEBEB', text2:'#A0A0A0', text3:'#5A5A5A', border:'rgba(255,255,255,.10)',
             surface:'rgba(13,13,13,0.88)', surf2:'rgba(13,13,13,0.78)', glass:'rgba(13,13,13,0.85)', glass2:'rgba(13,13,13,0.72)',
-            doneGlow:'rgba(197,255,74,0.15)', doneBorder:'rgba(197,255,74,0.30)', doneIconBg:'rgba(197,255,74,0.12)', doneIcon:'#C5FF4A', doneTrack:'#C5FF4A',
-            doneText:'#C5FF4A', heat1:'#2A2A2A', heat2:'#4A5E26', heat3:'#8AC840', heat4:'#C5FF4A', accentLight:'rgba(255,255,255,.08)', accentShadow:'rgba(197,255,74,0.35)',
-            checkBg:'#8AC840', sheetBg:'rgba(13,13,13,.95)' }
+            doneGlow:'rgba(155,191,122,0.12)', doneBorder:'rgba(155,191,122,0.25)', doneIconBg:'rgba(155,191,122,0.10)', doneIcon:'#9BBF7A', doneTrack:'#9BBF7A',
+            doneText:'#A8C97A', heat1:'#222222', heat2:'#3A4A2E', heat3:'#6B8E4E', heat4:'#9BBF7A', accentLight:'rgba(255,255,255,.08)', accentShadow:'rgba(155,191,122,0.25)',
+            checkBg:'#6B8E4E', sheetBg:'rgba(13,13,13,.95)' }
 };
 var curTheme = (localStorage.getItem('habitTheme'))||'fog';
 function applyTheme(tid){
@@ -2230,6 +2230,14 @@ function applyTheme(tid){
   r.setProperty('--done-text',t.doneText||t.doneIcon);
   r.setProperty('--heat1',t.heat1||t.bg3);
   r.setProperty('--heat2',t.heat2||t.accent);
+  // Header & nav bar backgrounds
+  r.setProperty('--header-bg', isNight?'rgba(13,13,13,0.96)':'rgba(245,245,245,0.94)');
+  r.setProperty('--nav-bg', isNight?'rgba(13,13,13,0.96)':'rgba(245,245,245,0.94)');
+  // Deeper shadows for dark theme layers
+  r.setProperty('--shadow', isNight?'0 4px 20px rgba(0,0,0,0.50)':'0 4px 16px rgba(50,80,70,0.08)');
+  r.setProperty('--shadow2', isNight?'0 2px 12px rgba(0,0,0,0.40)':'0 2px 8px rgba(50,80,70,0.06)');
+  // Card border more visible in dark theme
+  r.setProperty('--border', isNight?'rgba(255,255,255,0.12)':t.border);
   r.setProperty('--heat3',t.heat3||t.primary);
   r.setProperty('--heat4',t.heat4||t.text);
   r.setProperty('--sheet-bg',t.sheetBg);
