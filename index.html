@@ -181,7 +181,7 @@ body { font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif
 .sc-title { font-size:11px;color:var(--text3);margin-bottom:14px; }
 .bar-chart { display:flex;align-items:flex-end;gap:4px;height:90px; }
 .bw { flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%; }
-.bar { flex:1;width:100%;border-radius:4px 4px 0 0;background:var(--accent2);opacity:.55;min-height:2px;align-self:flex-end; }
+.bar { flex:none;width:100%;border-radius:4px 4px 0 0;background:var(--accent2);opacity:.55;min-height:2px; }
 .bar.ab { opacity:1;background:var(--accent); }
 .bl { font-size:10px;color:var(--text3); }
 .ov-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:12px; }
@@ -468,6 +468,7 @@ textarea.fi { resize:none;height:72px; }
     </div>
     <div class="si"><div class="si-label">连续打卡</div><div class="si-val" id="st-streak">0</div><div class="si-unit">天</div></div>
     <div class="si"><div class="si-label">今日时长</div><div class="si-val" id="st-mins">0</div><div class="si-unit">分钟</div></div>
+    <div class="si"><div class="si-label">今日专注</div><div class="si-val" id="st-focus">0</div><div class="si-unit">分钟</div></div>
     <div class="si"><div class="si-label">本月完成</div><div class="si-val" id="st-mrate">0</div><div class="si-unit">%</div></div>
   </div>
   <div class="sec-hd">
@@ -916,6 +917,7 @@ function loadDB(){
   try { var r=localStorage.getItem(DB_KEY); if(r) Object.assign(db,JSON.parse(r)); } catch(e){}
   if(!db.categories) db.categories = ['学习','健康','生活','其他'];
   if(!db.todos) db.todos = [];
+  if(!db.focusSessions) db.focusSessions = [];
   if(!db.tasks.length){
     var defs=[
       {name:'英语单词',icon:'book',category:'学习',color:'#7a94b0',duration:20,note:'每天学习新单词',notify:true,frequency:'daily',weeklyDays:[],chapters:{total:30,current:15},tags:[]},
@@ -1030,6 +1032,7 @@ function renderHome(){
   // Stats
   document.getElementById('st-streak').textContent = calcStreak();
   document.getElementById('st-mins').textContent = sumCIDurs(ch);
+  document.getElementById('st-focus').textContent = getTodayFocusMins();
   document.getElementById('st-mrate').textContent = calcMonthRate();
 
   // Grid
@@ -1656,7 +1659,7 @@ function renderStats(tab){
     barData.forEach(function(item){
       var bw=document.createElement('div'); bw.className='bw';
       var h=Math.max(2,Math.round(item.rate/maxR*100));
-      bw.innerHTML='<div class="bar'+(item.active?' ab':'')+'" style="height:'+h+'%"></div><div class="bl">'+item.label+'</div>';
+      bw.innerHTML='<div style="flex:1;width:100%;display:flex;align-items:flex-end;"><div class="bar'+(item.active?' ab':'')+'" style="height:'+h+'%"></div></div><div class="bl">'+item.label+'</div>';
       inner.appendChild(bw);
     });
   },30);
@@ -1665,12 +1668,16 @@ function renderStats(tab){
   var tMins=sumCIDurs(todayCh);
   var streak=calcStreak();
   var totalDays=Object.keys(db.checkins).filter(function(k){return countCheckins(db.checkins[k])>0;}).length;
+  var totalFocus = (db.focusSessions||[]).reduce(function(s,fs){ return s+fs.minutes; },0);
+  var todayFocus = getTodayFocusMins();
   var ov=document.createElement('div'); ov.className='card sc';
   ov.innerHTML='<div class="sc-title">数据概览</div><div class="ov-grid">'+
     '<div class="ov-item"><div class="ov-num">'+totalDays+'</div><div class="ov-desc">累计打卡天数</div></div>'+
     '<div class="ov-item"><div class="ov-num">'+streak+'</div><div class="ov-desc">当前连续天数</div></div>'+
-    '<div class="ov-item"><div class="ov-num">'+tMins+'</div><div class="ov-desc">今日总分钟</div></div>'+
+    '<div class="ov-item"><div class="ov-num">'+tMins+'</div><div class="ov-desc">今日打卡分钟</div></div>'+
     '<div class="ov-item"><div class="ov-num">'+tDone+'</div><div class="ov-desc">今日完成任务</div></div>'+
+    '<div class="ov-item"><div class="ov-num">'+todayFocus+'</div><div class="ov-desc">今日专注分钟</div></div>'+
+    '<div class="ov-item"><div class="ov-num">'+totalFocus+'</div><div class="ov-desc">累计专注分钟</div></div>'+
     '</div>';
   wrap.appendChild(ov);
   var cats = db.categories.map(function(c, i){
@@ -1789,11 +1796,31 @@ function resetFocus(){
   updateFocusDisplay();
   document.getElementById('f-label').textContent='点击开始专注';
   document.getElementById('f-start').style.display='flex';
+  document.getElementById('f-start').innerHTML='<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
   document.getElementById('f-stop').style.display='none';
 }
 function updateFocusDisplay(){
   var m=Math.floor(focusSecs/60), s=focusSecs%60;
   document.getElementById('f-time').textContent=p2(m)+':'+p2(s);
+}
+// Save a focus session
+function saveFocusSession(completedMin){
+  if(!completedMin || completedMin < 1) return;
+  var now = new Date();
+  db.focusSessions.push({
+    date: fd(now),
+    time: p2(now.getHours())+':'+p2(now.getMinutes()),
+    minutes: completedMin
+  });
+  saveDB();
+}
+// Get today's focus minutes
+function getTodayFocusMins(){
+  var tk = today(), sum = 0;
+  (db.focusSessions||[]).forEach(function(s){
+    if(s.date === tk) sum += s.minutes;
+  });
+  return sum;
 }
 document.getElementById('f-presets').addEventListener('click', function(e){
   var btn = e.target.closest('.f-p-btn');
@@ -1819,22 +1846,34 @@ document.getElementById('f-start').addEventListener('click', function(){
     updateFocusDisplay();
     if(focusSecs<=0){
       clearInterval(focusTimer); focusRunning=false;
-      document.getElementById('f-label').textContent='时间到！休息一下吧';
+      var elapsed = focusMinutes;
+      saveFocusSession(elapsed);
+      document.getElementById('f-label').textContent='时间到！已记录 '+elapsed+' 分钟';
       document.getElementById('f-start').style.display='flex';
       document.getElementById('f-start').innerHTML='<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
       document.getElementById('f-stop').style.display='none';
-      showToast('专注时间结束');
+      showToast('专注完成，已记录 '+elapsed+' 分钟');
+      renderHome();
     }
   },1000);
 });
 document.getElementById('f-stop').addEventListener('click', function(){
   clearInterval(focusTimer); focusRunning=false;
-  document.getElementById('f-label').textContent='已暂停 ('+Math.floor((focusMinutes*60-focusSecs)/60)+'分)';
+  var elapsed = Math.floor((focusMinutes*60-focusSecs)/60);
+  saveFocusSession(elapsed);
+  document.getElementById('f-label').textContent='已暂停 · 已记录 '+elapsed+' 分';
   document.getElementById('f-start').style.display='flex';
   document.getElementById('f-stop').style.display='none';
+  showToast('已记录专注 '+elapsed+' 分钟');
+  renderHome();
 });
 document.getElementById('f-close').addEventListener('click', function(){
-  if(focusRunning){ clearInterval(focusTimer); focusRunning=false; }
+  if(focusRunning){
+    clearInterval(focusTimer); focusRunning=false;
+    var elapsed = Math.floor((focusMinutes*60-focusSecs)/60);
+    saveFocusSession(elapsed);
+    renderHome();
+  }
   closeModal('m-focus');
 });
 
