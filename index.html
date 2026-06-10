@@ -619,7 +619,6 @@ textarea.fi { resize:none;height:72px}
   <div class="profile-wrap" style="margin-top:14px;">
     <div class="card" style="padding:28px 20px;text-align:center;">
       <div class="avatar" id="prof-avatar" style="margin:0 auto 14px;">H</div>
-      <div class="prof-name" id="prof-name" style="font-size:22px;font-weight:700;">Hui</div>
       <div class="prof-sub" style="font-size:13px;color:var(--text2);margin-top:4px;">坚持改变生活</div>
       <div class="prof-streak" id="prof-streak" style="justify-content:center;margin-top:8px;">0 天连续打卡</div>
     </div>
@@ -1113,10 +1112,15 @@ function loadDB(){
   if(!loaded){ OLD_KEYS.forEach(function(k){ try { var r3=localStorage.getItem(k); if(r3&&!loaded){ var d3=JSON.parse(r3); if(d3&&d3.checkins){ Object.assign(db,d3); loaded=true; }}} catch(e){}}) }
   // 4. Try IndexedDB
   if(!loaded){ window._needsIDBRestore=true; }
-  if(!db.categories) db.categories = ['学习','健康','生活','其他'];
-  if(!db.todos) db.todos = [];
-  if(!db.focusSessions) db.focusSessions = [];
-  if(!loaded && !localStorage.getItem('habitpwa_inited')){
+  // 5. Try Cache API (shared between Safari and standalone mode on iOS)
+  if(!loaded){
+    cacheLoadData().then(function(cached){
+      if(cached && cached.checkins && Object.keys(cached.checkins).length>0){
+        Object.assign(db,cached); saveDB();
+        if(curPage==='home') renderHome();
+        showToast('数据已恢复'); loaded=true;
+      }
+      if(!loaded && !localStorage.getItem('habitpwa_inited')){
     localStorage.setItem('habitpwa_inited','1');
     var defs=[
       {name:'英语单词',icon:'book',category:'学习',color:'#7a94b0',duration:20,note:'每天学习新单词',notify:true,frequency:'daily',weeklyDays:[],chapters:{total:30,current:15},tags:[]},
@@ -1128,6 +1132,8 @@ function loadDB(){
     ];
     defs.forEach(function(d){ d.id=uid(); db.tasks.push(d)});
     saveDB()}
+    });
+  }
   // Async restore from IndexedDB (survives PWA updates)
   if(window._needsIDBRestore){
     idbOpen().then(function(idb){
@@ -1144,11 +1150,18 @@ function loadDB(){
     }).catch(function(){});
   }
 }
+function cacheSaveData(data){
+  try{if('caches' in window){caches.open('habitpwa-v1').then(function(c){c.put('/__habit_data__',new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}})).catch(function(){})}).catch(function(){})}}catch(e){}
+}
+function cacheLoadData(){
+  return new Promise(function(res){try{if('caches' in window){caches.open('habitpwa-v1').then(function(c){c.match('/__habit_data__').then(function(r){if(r)r.json().then(function(d){res(d)}).catch(function(){res(null)});else res(null)}).catch(function(){res(null)})}).catch(function(){res(null)})}else res(null)}catch(e){res(null)}})
+}
 function saveDB(){
   var json=JSON.stringify(db);
   localStorage.setItem(DB_KEY,json);
   localStorage.setItem(DB_BAK,json);
   idbSave(db);
+  cacheSaveData(db);
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5)}
 function today(){ var d=new Date(); return fd(d)}
@@ -1200,7 +1213,9 @@ document.querySelectorAll('.nav-item').forEach(function(el){
 // ── HOME ──────────────────────────────────────────────────
 var WDAYS=['日','一','二','三','四','五','六'];
 function isTaskActiveToday(task){
-  if(task.frequency === 'once') return true;
+  if(task.frequency === 'once'){
+    for(var _k in db.checkins){ if(db.checkins[_k][task.id]!==undefined) return false}
+    return true}
   if(task.frequency === 'daily' || !task.frequency) return true;
   if(task.frequency === 'weekly'){
     if(!task.weeklyDays || task.weeklyDays.length === 0) return true;
@@ -1399,7 +1414,8 @@ function populateChapterPicker(total, savedCh){
 
 function openCI(task){
   ciTask=task;
-  var tk=selDate||today(), ch=db.checkins[tk]||{};
+  selDate=today();
+  var tk=selDate, ch=db.checkins[tk]||{};
   var cur=ch[task.id];
   document.getElementById('ci-icon').innerHTML = getIconSvg(task.icon);
   document.getElementById('ci-name').textContent=task.name;
@@ -1523,7 +1539,7 @@ document.getElementById('ci-confirm-btn').addEventListener('click', function(){
   };
   saveDB(); closeModal('m-ci'); showToast('✓ 已打卡 '+ciTask.name+'！');
   requestAnimationFrame(function(){
-    if(curPage==='cal' && curDDDate===selDate) renderDD();
+    if(curPage==='cal'){ renderDD(); updateCalStats()}
     if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
     else if(curPage==='profile') renderProfile()})});
 document.getElementById('ci-undo-btn').addEventListener('click', function(){
@@ -1532,7 +1548,7 @@ document.getElementById('ci-undo-btn').addEventListener('click', function(){
   if(db.checkins[tk]){ delete db.checkins[tk][ciTask.id]; delete db.checkins[tk][ciTask.id+'_sk']}
   saveDB(); closeModal('m-ci'); showToast('已撤销 '+ciTask.name);
   requestAnimationFrame(function(){
-    if(curPage==='cal' && curDDDate===selDate) renderDD();
+    if(curPage==='cal'){ renderDD(); updateCalStats()}
     if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
     else if(curPage==='profile') renderProfile()})});
 document.getElementById('ci-skip-btn').addEventListener('click', function(){
@@ -1543,7 +1559,7 @@ document.getElementById('ci-skip-btn').addEventListener('click', function(){
   db.checkins[tk][ciTask.id+'_sk']=true;
   saveDB(); closeModal('m-ci'); showToast('已标记休息 '+ciTask.name);
   requestAnimationFrame(function(){
-    if(curPage==='cal' && curDDDate===selDate) renderDD();
+    if(curPage==='cal'){ renderDD(); updateCalStats()}
     if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
     else if(curPage==='profile') renderProfile()})});
 document.getElementById('m-ci-close').addEventListener('click', function(){ closeModal('m-ci')});
@@ -1779,10 +1795,20 @@ document.getElementById('m-manage-close').addEventListener('click', function(){ 
 
 // ── CALENDAR ──────────────────────────────────────────────
 var calY, calM;
+function updateCalStats(){
+  var calStreakEl=document.getElementById('cal-streak-num');
+  if(calStreakEl) calStreakEl.textContent=calcStreak();
+  var mDays=0, mDim=new Date(calY,calM+1,0).getDate();
+  for(var mi=1;mi<=mDim;mi++){
+    var mK=calY+'-'+p2(calM+1)+'-'+p2(mi);
+    if(countCheckins(db.checkins[mK]||{})>0) mDays++}
+  var calMonthEl=document.getElementById('cal-month-days');
+  if(calMonthEl) calMonthEl.textContent=mDays+' 天';
+}
 function renderCal(){
   var now=new Date();
   if(!calY){ calY=now.getFullYear(); calM=now.getMonth()}
-  buildCal()}
+  buildCal(); renderDD()}
 function buildCal(){
   document.getElementById('cal-title').textContent=calY+'年'+(calM+1)+'月';
   // Streak display
@@ -1940,7 +1966,7 @@ function renderDD(){
           (function(task,dateStr){
             btnUndo.addEventListener('click',function(){
               if(db.checkins[dateStr]){ delete db.checkins[dateStr][task.id]; delete db.checkins[dateStr][task.id+'_sk']}
-              saveDB(); requestAnimationFrame(function(){ renderDD(); if(curPage==='home'){updateHomeStats();updateTaskCard(task,dateStr)}});
+              saveDB(); requestAnimationFrame(function(){ renderDD(); updateCalStats(); if(curPage==='home'){updateHomeStats();updateTaskCard(task,dateStr)}});
               showToast('已撤销 '+task.name)})})(t,ds);
           actRow.appendChild(btnUndo)}
       }
@@ -2142,7 +2168,6 @@ function renderStats(tab){
 function renderProfile(){
   var n=db.name||'Hui';
   document.getElementById('prof-avatar').textContent=n[0].toUpperCase();
-  document.getElementById('prof-name').textContent=n;
   var streak=calcStreak();
   document.getElementById('prof-streak').innerHTML = '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:2;vertical-align:text-bottom;margin-right:4px;"><path d="M12 3l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7L12 3z"/></svg>'+streak+' 天连续打卡';
   document.getElementById('mi-namedesc').textContent='当前：'+n;
@@ -2154,7 +2179,7 @@ function renderProfile(){
     var totalCI=Object.keys(db.checkins).filter(function(k){ return countCheckins(db.checkins[k])>0}).length;
     var totalFocusH=Math.floor((db.focusSessions||[]).reduce(function(s,fs){ return s+fs.minutes},0)/60);
     var ach=[
-      { icon:'<svg viewBox="0 0 24 24"><path d="M6 4h12v3a6 6 0 01-12 0V4z"/><path d="M8 4V2h8v2"/><path d="M8 20h8"/><path d="M10 20v-3"/><path d="M14 20v-3"/></svg>', text:'连续 '+(streak>=7?'7':'0')+' 天', done:streak>=7 },
+      { icon:'<svg viewBox="0 0 24 24"><path d="M6 4h12v3a6 6 0 01-12 0V4z"/><path d="M8 4V2h8v2"/><path d="M8 20h8"/><path d="M10 20v-3"/><path d="M14 20v-3"/></svg>', text:'连续 '+streak+' 天', done:streak>=7 },
       { icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>', text:'打卡 '+Math.min(totalCI,100)+'/100 次', done:totalCI>=100 },
       { icon:'<svg viewBox="0 0 24 24"><path d="M12 3v3"/><path d="M12 18v3"/><path d="M4.6 6.6l2.1 2.1"/><path d="M17.3 17.3l2.1 2.1"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="M4.6 17.4l2.1-2.1"/><path d="M17.3 6.7l2.1-2.1"/><circle cx="12" cy="12" r="4"/></svg>', text:'专注 '+totalFocusH+'/30 小时', done:totalFocusH>=30 },
     ];
@@ -2349,7 +2374,8 @@ function renderTodos(){
       if(todo){todo.done=!todo.done;if(todo.done) todo.doneDate=today();else delete todo.doneDate;saveDB();renderTodos()}}
   },{passive:true}),list._delegated=1);
   // preserve dblclick to edit
-  list._dbldel||(list.addEventListener('dblclick',function(e){var t=e.target.closest('[data-edit]');if(t){var todo=db.todos.find(function(x){return x.id===t.dataset.edit});if(todo)showPrompt('待办内容',todo.text,function(v){todo.text=v;saveDB();renderTodos()})}},{passive:true}),list._dbldel=1)}
+  list._dbldel||(list.addEventListener('dblclick',function(e){var t=e.target.closest('[data-edit]');if(t){var todo=db.todos.find(function(x){return x.id===t.dataset.edit});if(todo)showPrompt('待办内容',todo.text,function(v){todo.text=v;saveDB();renderTodos()})}},{passive:true}),list._dbldel=1);
+  if(curPage==='cal' && curDDDate) renderDD()}
 function ehtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 document.getElementById('todo-add-btn').addEventListener('click', function(){
   document.getElementById('fi-todo').value = '';
