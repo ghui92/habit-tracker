@@ -1097,7 +1097,7 @@ var IDB_NAME = 'HabitPWA';
 var IDB_STORE = 'state';
 // Known old keys to auto-migrate from
 var OLD_KEYS = ['habitpwa_v6','habitpwa_v6_bak','habitpwa_v4'];
-var db = { name:'Hui', tasks:[], checkins:{}, gridCols:3, categories:['学习','健康','生活','其他'] };
+var db = { name:'Hui', tasks:[], checkins:{}, todos:[], gridCols:3, categories:['学习','健康','生活','其他'] };
 
 function idbOpen(){ return new Promise(function(res,rej){ var r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=function(){ r.result.createObjectStore(IDB_STORE); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
 function idbSave(data){ idbOpen().then(function(idb){ var tx=idb.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(data,'db'); }).catch(function(){}); }
@@ -2337,21 +2337,25 @@ document.getElementById('import-file').addEventListener('change', function(e){
       var data=JSON.parse(ev.target.result);
       if(!data.checkins){ showToast('格式错误：缺少打卡数据'); return; }
       showConfirm('导入将合并数据（保留已有+新增备份中的记录），继续？', function(){
+        try{
         var merged={};
         Object.keys(db.checkins).forEach(function(k){ merged[k]=db.checkins[k]; });
         Object.keys(data.checkins).forEach(function(k){
           if(!merged[k]) merged[k]={};
           Object.keys(data.checkins[k]).forEach(function(tid){ merged[k][tid]=data.checkins[k][tid]; });
         });
+        // If no existing checkins, replace tasks with imported (avoid duplicates from defaults)
+        if(Object.keys(db.checkins).length===0) db.tasks=[];
         var taskMap={};
         db.tasks.forEach(function(t){ taskMap[t.id]=t; });
         (data.tasks||[]).forEach(function(t){ if(!taskMap[t.id]){ db.tasks.push(t); taskMap[t.id]=t; }});
         if(data.name) db.name=data.name;
-        if(data.todos) data.todos.forEach(function(t){ if(!db.todos.find(function(x){return x.id===t.id})) db.todos.push(t); });
+        if(data.todos) data.todos.forEach(function(t){ if(!db.todos||!db.todos.find(function(x){return x.id===t.id})){ if(!db.todos) db.todos=[]; db.todos.push(t); }});
         db.checkins=merged;
         saveDB();
         renderHome();renderTodos();
         showToast('数据已导入');
+        }catch(ex){ showToast('导入失败：'+ex.message); throw ex; }
       });
     }catch(ex){ showToast('JSON 解析失败'); }
     e.target.value='';
