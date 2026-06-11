@@ -354,6 +354,18 @@ textarea.fi { resize:none;height:72px}
 .tch .td { width:14px;height:14px;cursor:pointer;opacity:.5;display:flex;align-items:center;justify-content:center}
 .tch .td:hover { opacity:1}
 .tch .td svg { width:11px;height:11px;stroke:var(--text3);stroke-width:2;fill:none}
+.cat-tag { display:inline-flex;align-items:center;padding:3px 12px;border-radius:12px;font-size:12px;background:var(--bg3);color:var(--text2);cursor:pointer;user-select:none;border:1px solid transparent}
+.cat-tag.sel { background:var(--accent-light);color:var(--accent);border-color:var(--accent)}
+#cat-tags-fg { display:none}
+.compact.sheet { max-width:200px !important}
+.compact .sh-title { font-size:15px !important}
+.compact #confirm-msg { font-size:12px !important; margin:10px 0 4px !important}
+.compact .btn-row { padding:8px 16px 14px !important}
+.compact .btn { font-size:12px !important; padding:6px 12px !important}
+.cat-tag { position:relative}
+.cat-tag .cat-tag-del { position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--bg3);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:1}
+.cat-tag:hover .cat-tag-del { display:flex}
+.cat-tag .cat-tag-del svg { width:8px;height:8px;stroke:var(--text3);stroke-width:2;fill:none}
 /* Frequency selector */
 .freq-row { display:flex;background:var(--bg3);border-radius:12px;padding:3px}
 .freq-btn { flex:1;text-align:center;padding:8px;border-radius:10px;font-size:13px;cursor:pointer;transition:all .2s;color:var(--text3);user-select:none;-webkit-user-select:none}
@@ -727,6 +739,11 @@ textarea.fi { resize:none;height:72px}
         <div class="chip-row" id="cat-chip-row"></div>
       </div>
 
+      <div class="fg" id="cat-tags-fg">
+        <div class="fl">固有标签</div>
+        <div class="tl" id="cat-tag-list"></div>
+      </div>
+
       <div class="fg">
         <div class="fl">标签</div>
         <div class="tir">
@@ -949,12 +966,14 @@ textarea.fi { resize:none;height:72px}
 <div class="overlay" id="m-confirm">
   <div class="sheet" style="max-width:300px;margin:0 auto;border-radius:24px;align-self:center;">
     <div class="sh-handle"></div>
-    <div style="padding:24px 20px 0;text-align:center;">
+    <div style="padding:24px 20px 0;text-align:center;position:relative;">
+      <div class="sh-close" id="confirm-close-btn" style="display:none;position:absolute;top:-6px;right:6px;"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
       <div class="sh-title" id="confirm-title">确认</div>
       <div style="font-size:14px;color:var(--text2);margin:14px 0 8px;line-height:1.5;" id="confirm-msg"></div>
     </div>
     <div class="btn-row" style="padding:12px 20px 18px;">
       <div class="btn btn-ghost" id="confirm-cancel-btn">取消</div>
+      <div class="btn btn-primary" id="confirm-ok-btn2" style="display:none;"></div>
       <div class="btn btn-primary" id="confirm-ok-btn">确定</div>
     </div>
   </div>
@@ -1097,7 +1116,7 @@ var IDB_NAME = 'HabitPWA';
 var IDB_STORE = 'state';
 // Known old keys to auto-migrate from
 var OLD_KEYS = ['habitpwa_v6','habitpwa_v6_bak','habitpwa_v4'];
-var db = { name:'Hui', tasks:[], checkins:{}, todos:[], gridCols:3, categories:['学习','健康','生活','其他'] };
+var db = { name:'Hui', tasks:[], checkins:{}, todos:[], gridCols:3, categories:['学习','健康','生活','其他'], catTags:{} };
 
 function idbOpen(){ return new Promise(function(res,rej){ var r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=function(){ r.result.createObjectStore(IDB_STORE); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
 function idbSave(data){ idbOpen().then(function(idb){ var tx=idb.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(data,'db'); }).catch(function(){}); }
@@ -1222,6 +1241,7 @@ document.querySelectorAll('.nav-item').forEach(function(el){
 var WDAYS=['日','一','二','三','四','五','六'];
 function isTaskActiveToday(task){
   if(task.frequency === 'once'){
+    if(task.targetDate) return task.targetDate === today();
     for(var _k in db.checkins){ if(db.checkins[_k][task.id]!==undefined||db.checkins[_k][task.id+'_sk']!==undefined) return false}
     return true}
   if(task.frequency === 'daily' || !task.frequency) return true;
@@ -1547,7 +1567,7 @@ document.getElementById('ci-confirm-btn').addEventListener('click', function(){
   };
   saveDB(); closeModal('m-ci'); showToast('✓ 已打卡 '+ciTask.name+'！');
   requestAnimationFrame(function(){
-    if(curPage==='cal'){ renderDD(); updateCalStats()}
+    if(curPage==='cal'){ renderCal(); updateCalStats()}
     if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
     else if(curPage==='profile') renderProfile()})});
 document.getElementById('ci-undo-btn').addEventListener('click', function(){
@@ -1556,7 +1576,7 @@ document.getElementById('ci-undo-btn').addEventListener('click', function(){
   if(db.checkins[tk]){ delete db.checkins[tk][ciTask.id]; delete db.checkins[tk][ciTask.id+'_sk']}
   saveDB(); closeModal('m-ci'); showToast('已撤销 '+ciTask.name);
   requestAnimationFrame(function(){
-    if(curPage==='cal'){ renderDD(); updateCalStats()}
+    if(curPage==='cal'){ renderCal(); updateCalStats()}
     if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
     else if(curPage==='profile') renderProfile()})});
 document.getElementById('ci-skip-btn').addEventListener('click', function(){
@@ -1567,7 +1587,7 @@ document.getElementById('ci-skip-btn').addEventListener('click', function(){
   db.checkins[tk][ciTask.id+'_sk']=true;
   saveDB(); closeModal('m-ci'); showToast('已标记休息 '+ciTask.name);
   requestAnimationFrame(function(){
-    if(curPage==='cal'){ renderDD(); updateCalStats()}
+    if(curPage==='cal'){ renderCal(); updateCalStats()}
     if(curPage==='home'){ updateHomeStats(); updateTaskCard(ciTask, today())}
     else if(curPage==='profile') renderProfile()})});
 document.getElementById('m-ci-close').addEventListener('click', function(){ closeModal('m-ci')});
@@ -1583,10 +1603,10 @@ document.getElementById('ci-del-btn').addEventListener('click', function(){
 
 // ── TASK EDITOR ───────────────────────────────────────────
 var editTask=null;
-var tf={ icon:'book',cat:'学习',color:'#8b7a6e',dur:20,freq:'daily',wdays:[],chapTotal:0,chapCurr:0,tags:[] };
+var tf={ icon:'book',cat:'学习',color:'#8b7a6e',dur:20,freq:'daily',wdays:[],chapTotal:0,chapCurr:0,tags:[],targetDate:'' };
 
 function openAddTask(){
-  editTask=null; tf={icon:'book',cat:db.categories[0],color:'#8b7a6e',dur:20,freq:'daily',wdays:[],chapTotal:0,chapCurr:0,tags:[]};
+  editTask=null; tf={icon:'book',cat:db.categories[0],color:'#8b7a6e',dur:20,freq:'daily',wdays:[],chapTotal:0,chapCurr:0,tags:[],targetDate:curPage==='cal'&&curDDDate?curDDDate:today()};
   document.getElementById('m-task-title').textContent='添加任务';
   document.getElementById('fi-name').value='';
   document.getElementById('fi-note').value='';
@@ -1601,7 +1621,7 @@ function openEditTask(task){
     freq:task.frequency || 'daily', wdays:task.weeklyDays || [],
     chapTotal: (task.chapters && task.chapters.total) || 0,
     chapCurr: (task.chapters && task.chapters.current) || 0,
-    tags: task.tags || []
+    tags: task.tags || [], targetDate: task.targetDate || ''
   };
   document.getElementById('m-task-title').textContent='编辑任务';
   document.getElementById('fi-name').value=task.name;
@@ -1628,9 +1648,46 @@ document.getElementById('tag-add-btn').addEventListener('click', function(){
   var v=document.getElementById('fi-tag').value.trim();
   if(!v){ showToast('请输入标签'); return}
   if(tf.tags.indexOf(v)!==-1){ showToast('标签已存在'); return}
-  tf.tags.push(v);
-  document.getElementById('fi-tag').value='';
-  buildTagList()});
+  showChoice('标签「'+v+'」', '是否保存为固有标签？',
+    '否', function(){
+      tf.tags.push(v);
+      document.getElementById('fi-tag').value='';
+      buildTagList()},
+    '是', function(){
+      if(!db.catTags[tf.cat]) db.catTags[tf.cat]=[];
+      if(db.catTags[tf.cat].indexOf(v)===-1){
+        db.catTags[tf.cat].push(v);
+        saveDB()}
+      tf.tags.push(v);
+      document.getElementById('fi-tag').value='';
+      buildTagList(); renderCatTags()})});
+
+function renderCatTags(){
+  var list=document.getElementById('cat-tag-list');
+  var fg=document.getElementById('cat-tags-fg');
+  var catTags=db.catTags[tf.cat];
+  list.innerHTML='';
+  if(!catTags||catTags.length===0){ fg.style.display='none'; return}
+  fg.style.display='block';
+  catTags.forEach(function(tag){
+    var el=document.createElement('span');
+    el.className='cat-tag'+(tf.tags.indexOf(tag)!==-1?' sel':'');
+    el.textContent=tag;
+    var del=document.createElement('span');
+    del.className='cat-tag-del';
+    del.innerHTML='<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    (function(t){ del.addEventListener('click',function(e){
+      e.stopPropagation();
+      db.catTags[tf.cat]=db.catTags[tf.cat].filter(function(x){return x!==t});
+      var idx=tf.tags.indexOf(t);
+      if(idx!==-1) tf.tags.splice(idx,1);
+      saveDB(); renderCatTags(); buildTagList()})})(tag);
+    el.appendChild(del);
+    el.addEventListener('click',function(){
+      var idx=tf.tags.indexOf(tag);
+      if(idx===-1) tf.tags.push(tag); else tf.tags.splice(idx,1);
+      renderCatTags(); buildTagList()});
+    list.appendChild(el)})}
 
 function buildCategoryChips(){
   var row = document.getElementById('cat-chip-row');
@@ -1652,7 +1709,8 @@ function buildCategoryChips(){
           buildCategoryChips()});
         return}
       tf.cat = cat;
-      document.querySelectorAll('.cat-chip').forEach(function(x){ x.classList.toggle('sel', x.dataset.cat === cat)})});
+      document.querySelectorAll('.cat-chip').forEach(function(x){ x.classList.toggle('sel', x.dataset.cat === cat)});
+      renderCatTags()});
     row.appendChild(chip)});
   var addBtn = document.createElement('div');
   addBtn.className = 'cat-add-btn';
@@ -1707,6 +1765,7 @@ function buildTaskForm(){
     tog.classList.toggle('open',isOpen)};
   buildCategoryChips();
   buildTagList();
+  renderCatTags();
   document.querySelectorAll('.freq-btn').forEach(function(el){ el.classList.toggle('active', el.dataset.freq === tf.freq)});
   document.getElementById('week-days').style.display = tf.freq === 'weekly' ? 'flex' : 'none';
   document.querySelectorAll('.wd-btn').forEach(function(el){
@@ -1753,12 +1812,12 @@ document.getElementById('task-save-btn').addEventListener('click', function(){
     editTask.name=name; editTask.icon=tf.icon; editTask.category=tf.cat;
     editTask.color=tf.color; editTask.duration=tf.dur; editTask.note=note; editTask.notify=notify;
     editTask.frequency = tf.freq; editTask.weeklyDays = tf.wdays.slice(); editTask.chapters = chapters;
-    editTask.tags = tf.tags.slice()} else {
+    editTask.tags = tf.tags.slice(); editTask.targetDate = tf.targetDate} else {
     db.tasks.push({
       id:uid(), name:name, icon:tf.icon, category:tf.cat, color:tf.color,
       duration:tf.dur, note:note, notify:notify,
       frequency: tf.freq, weeklyDays: tf.wdays.slice(), chapters: chapters,
-      tags: tf.tags.slice()
+      tags: tf.tags.slice(), targetDate: tf.targetDate
     })}
   saveDB(); closeModal('m-task'); showToast(editTask?'任务已更新':'任务已添加'); requestAnimationFrame(function(){ renderHome()})});
 document.getElementById('task-del-btn').addEventListener('click', function(){
@@ -1842,7 +1901,7 @@ function buildCal(){
     var cls='cal-d'+(ds===nowStr?' td':'');
     var ch=db.checkins[ds]||{};
     var activeCount = db.tasks.filter(function(t){
-      if(t.frequency === 'once') return true;
+      if(t.frequency === 'once') return t.targetDate ? t.targetDate===ds : true;
       if(t.frequency === 'daily') return true;
       if(t.frequency === 'weekly'){
         var d = new Date(calY, calM, day).getDay();
@@ -1877,7 +1936,7 @@ function renderDD(){
   var isFuture = ds > fd(new Date());
 
   var activeTasks = db.tasks.filter(function(t){
-    if(t.frequency === 'once') return true;
+    if(t.frequency === 'once') return t.targetDate ? t.targetDate===ds : true;
     if(t.frequency === 'daily') return true;
     if(t.frequency === 'weekly'){
       var d = new Date(calY, calM, day).getDay();
@@ -1921,19 +1980,18 @@ function renderDD(){
       var actRow=document.createElement('div');
       actRow.className='dd-act-row';
 
-      if(!isFuture){
-        // Check-in / edit button
-        var btnCI=document.createElement('div');
-        btnCI.className='dd-act-btn'+(done?' dd-act-check':' dd-act-edit');
-        btnCI.title=done?'修改打卡':'补打卡';
-        btnCI.innerHTML=done?
-          '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':
-          '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
-        (function(task,dateStr){
-          btnCI.addEventListener('click',function(){
-            // Open check-in modal for this task on this date
-            ciTask=task;
-            selDate=dateStr;
+      // Check-in / edit button
+      var btnCI=document.createElement('div');
+      btnCI.className='dd-act-btn'+(done?' dd-act-check':' dd-act-edit');
+      btnCI.title=done?'修改打卡':'打卡';
+      btnCI.innerHTML=done?
+        '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>':
+        '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+      (function(task,dateStr){
+        btnCI.addEventListener('click',function(){
+          // Open check-in modal for this task on this date
+          ciTask=task;
+          selDate=dateStr;
             var curCh=db.checkins[dateStr]||{};
             var cur=curCh[task.id];
             document.getElementById('ci-icon').innerHTML=getIconSvg(task.icon);
@@ -1974,10 +2032,9 @@ function renderDD(){
           (function(task,dateStr){
             btnUndo.addEventListener('click',function(){
               if(db.checkins[dateStr]){ delete db.checkins[dateStr][task.id]; delete db.checkins[dateStr][task.id+'_sk']}
-              saveDB(); requestAnimationFrame(function(){ renderDD(); updateCalStats(); if(curPage==='home'){updateHomeStats();updateTaskCard(task,dateStr)}});
+              saveDB(); requestAnimationFrame(function(){ renderCal(); updateCalStats()});
               showToast('已撤销 '+task.name)})})(t,ds);
           actRow.appendChild(btnUndo)}
-      }
 
       item.appendChild(iconWrap);
       item.appendChild(info);
@@ -2012,19 +2069,14 @@ function renderDD(){
       list.appendChild(item)});
   }
 
-  if(!isFuture){
-    // Add task button for this date — tasks not in active list
-    var allOtherTasks=db.tasks.filter(function(t){
-      return !activeTasks.find(function(a){ return a.id===t.id})});
-    if(allOtherTasks.length>0){
-      var addBtn=document.createElement('div');
-      addBtn.className='dd-add-btn';
-      addBtn.innerHTML='＋ 补充其他任务记录';
-      addBtn.addEventListener('click',function(){
-        // show a simple picker sheet
-        openHistoryTaskPicker(ds, allOtherTasks)});
-      list.appendChild(addBtn)}
-  }
+  var addBtn=document.createElement('div');
+  addBtn.className='dd-add-btn';
+  addBtn.innerHTML='＋ 补充其他任务记录';
+  addBtn.addEventListener('click',function(){
+    var unchecked=db.tasks.filter(function(t){return ch[t.id]===undefined});
+    if(unchecked.length===0){ showToast('该日所有任务已打卡'); return }
+    openHistoryTaskPicker(ds, unchecked)});
+  list.appendChild(addBtn);
 
   det.style.display='block';
   setTimeout(function(){ det.scrollIntoView({behavior:'smooth',block:'nearest'})},50)}
@@ -2547,7 +2599,14 @@ document.addEventListener('click', function(e){
 function openModal(id){ requestAnimationFrame(function(){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'})}
 function showConfirm(msg, onOk){
   document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-title').textContent='确认';
+  document.getElementById('confirm-ok-btn').textContent='确定';
+  document.getElementById('confirm-ok-btn').className='btn btn-primary';
   document.getElementById('confirm-ok-btn').onclick = function(){ closeModal('m-confirm'); if(onOk) onOk()};
+  document.getElementById('confirm-ok-btn2').style.display='none';
+  document.getElementById('confirm-cancel-btn').style.display='';
+  document.getElementById('confirm-close-btn').style.display='none';
+  document.getElementById('m-confirm').querySelector('.sheet').classList.remove('compact');
   document.getElementById('confirm-cancel-btn').onclick = function(){ closeModal('m-confirm')};
   document.getElementById('m-confirm').onclick = function(e){ if(e.target===this) closeModal('m-confirm')};
   openModal('m-confirm')}
@@ -2564,6 +2623,22 @@ function showPrompt(label, val, onOk){
   document.getElementById('m-prompt').onclick = function(e){ if(e.target===this) closeModal('m-prompt')};
   openModal('m-prompt'); setTimeout(function(){ inp.focus()}, 200)}
 function closeModal(id){ requestAnimationFrame(function(){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''})}
+function showChoice(title, msg, btn1Label, btn1Cb, btn2Label, btn2Cb){
+  document.getElementById('confirm-title').textContent=title;
+  document.getElementById('confirm-msg').textContent=msg;
+  document.getElementById('m-confirm').querySelector('.sheet').classList.add('compact');
+  document.getElementById('confirm-ok-btn').textContent=btn1Label;
+  document.getElementById('confirm-ok-btn').className='btn btn-ghost';
+  document.getElementById('confirm-ok-btn').onclick=function(){ closeModal('m-confirm'); if(btn1Cb) btn1Cb()};
+  document.getElementById('confirm-cancel-btn').style.display='none';
+  var btn2=document.getElementById('confirm-ok-btn2');
+  btn2.textContent=btn2Label; btn2.style.display='';
+  btn2.onclick=function(){ closeModal('m-confirm'); if(btn2Cb) btn2Cb()};
+  var closeBtn=document.getElementById('confirm-close-btn');
+  closeBtn.style.display='';
+  closeBtn.onclick=function(){ closeModal('m-confirm')};
+  document.getElementById('m-confirm').onclick=function(e){ if(e.target===this) closeModal('m-confirm')};
+  openModal('m-confirm')}
 document.querySelectorAll('.overlay').forEach(function(ov){
   ov.addEventListener('click', function(e){ if(e.target===ov) closeModal(ov.id)}, {passive:true})});
 // Init chapter picker toggle
