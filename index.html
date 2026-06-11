@@ -1349,14 +1349,14 @@ function updateTaskCard(task,tk){
     (isSk?'<div class="tc-prog" style="color:var(--text3);">今日休息</div>':(isDone?'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;"><div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:'+prog*100+'%;background:var(--done-track);opacity:.7;"></div></div><div class="tc-prog" style="color:var(--done-icon-stroke);font-weight:600;white-space:nowrap;">'+minsD+'/'+task.duration+'分</div></div>':'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;"><div class="tc-bar" style="flex:1;margin-right:6px;"><div class="tc-fill" style="width:0%;background:'+task.color+';opacity:.3;"></div></div><div class="tc-prog" style="color:var(--text3);white-space:nowrap;">0/'+task.duration+'分</div></div>'))+
     '</div>'}
 function calcStreak(){
-  var s=0, d=new Date();
+  var d=new Date(); d.setDate(d.getDate()-1);
+  var s=0;
   for(var i=0;i<365;i++){
-    var k=fd(d);
-    var ch=db.checkins[k]||{};
-    if(countCheckins(ch)===0 && Object.keys(ch).length===0) break;
-    if(countCheckins(ch)===0 && Object.keys(ch).length>0){ s++; d.setDate(d.getDate()-1); continue}
+    var k=fd(d); var ch=db.checkins[k]||{};
     if(Object.keys(ch).length===0) break;
     s++; d.setDate(d.getDate()-1)}
+  var t=fd(new Date()); var tc=db.checkins[t]||{};
+  if(countCheckins(tc)>0) s++;
   return s}
 function calcMonthRate(){
   var now=new Date(), y=now.getFullYear(), m=now.getMonth(), today2=now.getDate();
@@ -1842,17 +1842,17 @@ function buildCal(){
     var cls='cal-d'+(ds===nowStr?' td':'');
     var ch=db.checkins[ds]||{};
     var activeCount = db.tasks.filter(function(t){
-      if(t.frequency === 'once') return false;
+      if(t.frequency === 'once') return true;
       if(t.frequency === 'daily') return true;
       if(t.frequency === 'weekly'){
         var d = new Date(calY, calM, day).getDay();
         return t.weeklyDays.indexOf(d) !== -1}
       return true}).length;
-    var done=countCheckins(ch), tot=activeCount||1, rate=done/tot;
+    var done=countCheckins(ch), tot=activeCount||1, rate=Math.min(1,done/tot);
     var ringHtml='';
     if(done>0){
       var circ=2*Math.PI*13;
-      ringHtml='<svg viewBox="0 0 32 32" width="32" height="32" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"><g transform="rotate(-90 16 16)"><circle cx="16" cy="16" r="13" fill="none" stroke="var(--border2)" stroke-width="2.5"/><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+(circ-circ*rate)+'"/></g></svg>'}
+      ringHtml='<svg viewBox="0 0 32 32" width="32" height="32" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"><g transform="rotate(-90 16 16)"><circle cx="16" cy="16" r="13" fill="none" stroke="var(--border2)" stroke-width="2.5"/><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="butt" stroke-dasharray="'+circ+'" stroke-dashoffset="'+(circ-circ*rate)+'"/></g></svg>'}
     html+='<div class="'+cls+'" data-cd="'+ds+'">'+ringHtml+day+'</div>'}
   var tc=first+dim, rem=tc%7===0?0:7-tc%7;
   for(var j=1;j<=rem;j++){ html+='<div class="cal-d om">'+j+'</div>'}
@@ -1877,11 +1877,7 @@ function renderDD(){
   var isFuture = ds > fd(new Date());
 
   var activeTasks = db.tasks.filter(function(t){
-    if(t.frequency === 'once'){
-      if(ds===today()){
-        for(var _k in db.checkins){ if(db.checkins[_k][t.id]!==undefined) return false}
-        return true}
-      return false}
+    if(t.frequency === 'once') return true;
     if(t.frequency === 'daily') return true;
     if(t.frequency === 'weekly'){
       var d = new Date(calY, calM, day).getDay();
